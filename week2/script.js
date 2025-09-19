@@ -40,12 +40,29 @@ function populateMoviesDropdown() {
     });
 }
 
+// --- Cosine Similarity helpers ---
+function genreVectorFor(movie) {
+    return genreNames.map(genre => (movie.genres.includes(genre) ? 1 : 0));
+}
+
+function cosineSimilarity(vecA, vecB) {
+    let dot = 0, magA = 0, magB = 0;
+    for (let i = 0; i < vecA.length; i++) {
+        const a = vecA[i];
+        const b = vecB[i];
+        dot += a * b;
+        magA += a * a;
+        magB += b * b;
+    }
+    const denom = Math.sqrt(magA) * Math.sqrt(magB);
+    return denom ? dot / denom : 0;
+}
+
 // Main recommendation function
 function getRecommendations() {
     const resultElement = document.getElementById('result');
     
     try {
-        // Step 1: Get user input
         const selectElement = document.getElementById('movie-select');
         const selectedMovieId = parseInt(selectElement.value);
         
@@ -55,7 +72,6 @@ function getRecommendations() {
             return;
         }
         
-        // Step 2: Find the liked movie
         const likedMovie = movies.find(movie => movie.id === selectedMovieId);
         if (!likedMovie) {
             resultElement.textContent = "Error: Selected movie not found in database.";
@@ -63,48 +79,25 @@ function getRecommendations() {
             return;
         }
         
-        // Show loading message while processing
-        resultElement.textContent = "Calculating recommendations...";
+        resultElement.textContent = "Calculating recommendations (cosine)...";
         resultElement.className = 'loading';
         
-        // Use setTimeout to allow the UI to update before heavy computation
         setTimeout(() => {
             try {
-                // Step 3: Prepare for similarity calculation
-                const likedGenres = new Set(likedMovie.genres);
+                const likedVector = genreVectorFor(likedMovie);
                 const candidateMovies = movies.filter(movie => movie.id !== likedMovie.id);
-                
-                // Step 4: Calculate Jaccard similarity scores
                 const scoredMovies = candidateMovies.map(candidate => {
-                    const candidateGenres = new Set(candidate.genres);
-                    
-                    // Calculate intersection
-                    const intersection = new Set(
-                        [...likedGenres].filter(genre => candidateGenres.has(genre))
-                    );
-                    
-                    // Calculate union
-                    const union = new Set([...likedGenres, ...candidateGenres]);
-                    
-                    // Calculate Jaccard similarity
-                    const score = union.size > 0 ? intersection.size / union.size : 0;
-                    
-                    return {
-                        ...candidate,
-                        score: score
-                    };
+                    const candidateVector = genreVectorFor(candidate);
+                    const score = cosineSimilarity(likedVector, candidateVector);
+                    return { ...candidate, score };
                 });
                 
-                // Step 5: Sort by score in descending order
                 scoredMovies.sort((a, b) => b.score - a.score);
-                
-                // Step 6: Select top recommendations
                 const topRecommendations = scoredMovies.slice(0, 2);
                 
-                // Step 7: Display results
                 if (topRecommendations.length > 0) {
                     const recommendationTitles = topRecommendations.map(movie => movie.title);
-                    resultElement.textContent = `Because you liked "${likedMovie.title}", we recommend: ${recommendationTitles.join(', ')}`;
+                    resultElement.textContent = `Because you liked "${likedMovie.title}", we recommend (cosine): ${recommendationTitles.join(', ')}`;
                     resultElement.className = 'success';
                 } else {
                     resultElement.textContent = `No recommendations found for "${likedMovie.title}".`;
