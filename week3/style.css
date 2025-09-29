@@ -1,0 +1,20 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background: #f6f8fb; color: #223; }
+.container { max-width: 900px; margin: 32px auto; background: #fff; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.06); overflow: hidden; }
+header { padding: 28px 28px 12px; background: linear-gradient(135deg, #2a7de1 0%, #5aa8ff 100%); color: white; }
+header h1 { margin: 0 0 6px; font-size: 28px; font-weight: 800; }
+header p { margin: 0; opacity: 0.95; }
+main { padding: 24px 28px 32px; }
+.controls { display: grid; grid-template-columns: 1fr 1fr auto; gap: 16px; align-items: end; margin-bottom: 20px; }
+.input-group label { display: block; font-size: 14px; margin-bottom: 6px; color: #334; }
+select { width: 100%; padding: 10px 12px; border: 1px solid #d9e0ea; border-radius: 10px; background: #fff; font-size: 14px; }
+select:focus { outline: none; border-color: #2a7de1; box-shadow: 0 0 0 3px rgba(42,125,225,0.12); }
+#predict-btn { height: 42px; padding: 0 18px; background: linear-gradient(135deg, #2a7de1 0%, #4b91f7 100%); color: white; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s; }
+#predict-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(42,125,225,0.35); }
+#predict-btn:disabled { background: #c6d6ee; cursor: not-allowed; opacity: 0.9; }
+.status { padding: 14px 16px; background: #f0f5ff; border-radius: 10px; border-left: 4px solid #2a7de1; margin-bottom: 16px; font-weight: 500; color: #1b2b52; }
+.result { padding: 18px; background: #e8f5ec; border-radius: 10px; border-left: 4px solid #22a06b; font-size: 16px; min-height: 56px; display: flex; align-items: center; justify-content: center; }
+.result.high { background: #e8f6f3; border-left-color: #27ae60; }
+.result.medium { background: #fef9e7; border-left-color: #f39c12; }
+.result.low { background: #fdedec; border-left-color: #e74c3c; }
+@media (max-width: 720px) { .controls { grid-template-columns: 1fr; } }
