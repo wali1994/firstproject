@@ -1,50 +1,16 @@
-/* two-tower.js
- * Two-Tower retrieval model for TF.js
- *
- * Features:
- * - Shallow (embed • dot) OR Deep (MLP towers) via opts.useDeep
- * - Item genres as additional features (one-hot vector) via opts.numGenres + batch input
- * - Optional user features (e.g., #ratings, avg rating) via opts.userFeatDim + batch input
- * - In-batch sampled softmax loss (diagonal is positive pair)
- *
- * Public API (used by app.js):
- *   const m = new TwoTowerModel(numUsers, numItems, {
- *     embeddingDim: 32,
- *     useDeep: true,
- *     userHidden: [64, 32],   // last must equal item last
- *     itemHidden: [64, 32],   // last must equal user last
- *     numGenres: 19,
- *     userFeatDim: 0,
- *     l2Reg: 0.0,
- *     lr: 1e-3
- *   });
- *
- *   // Training (for each batch)
- *   await m.trainStep(userIdx, itemIdx, {
- *     userFeats: [B, userFeatDim]  (optional),
- *     itemGenres: [B, numGenres]   (required if numGenres>0)
- *   });
- *
- *   // After training — cache all item vectors (needed for fast scoring)
- *   m.buildItemIndex(allItemGenresTensor)  // [numItems, numGenres]
- *
- *   // Recommend for a single user
- *   const {scores, topIdx} = await m.scoreAllForUser(userId, userFeatRowTensorOptional);
- *   // topIdx: indices of top items by score
- */
-
 class TwoTowerModel {
   constructor(numUsers, numItems, opts = {}) {
     this.numUsers = numUsers;
     this.numItems = numItems;
 
-    // --- Hyperparams / options ---
+    // Unique id so all variables from this model have unique names
+    this.uid = `m${Date.now()}_${Math.floor(Math.random() * 1e9)}`;
+
     this.embeddingDim = opts.embeddingDim ?? 32;
-    this.useDeep      = !!opts.useDeep; // false = shallow embed•dot
+    this.useDeep      = !!opts.useDeep;
     this.userHidden   = (opts.userHidden ?? [64, this.embeddingDim]).slice();
     this.itemHidden   = (opts.itemHidden ?? [64, this.embeddingDim]).slice();
 
-    // Ensure both towers end with SAME dim (for dot product)
     const uLast = this.userHidden[this.userHidden.length - 1];
     const iLast = this.itemHidden[this.itemHidden.length - 1];
     if (this.useDeep && uLast !== iLast) {
@@ -52,42 +18,47 @@ class TwoTowerModel {
     }
     this.towerOutDim = this.useDeep ? uLast : this.embeddingDim;
 
-    this.numGenres   = opts.numGenres ?? 0;     // item features
-    this.userFeatDim = opts.userFeatDim ?? 0;   // user features
+    this.numGenres   = opts.numGenres ?? 0;
+    this.userFeatDim = opts.userFeatDim ?? 0;
     this.l2Reg       = opts.l2Reg ?? 0.0;
     this.lr          = opts.lr ?? 1e-3;
 
-    // --- Embedding tables ---
-    // Indices are 0..num-1 (make sure you map IDs to 0-based in app.js)
-    this.userEmb = tf.variable(tf.randomNormal([numUsers, this.embeddingDim], 0, 0.05), true, 'userEmb');
-    this.itemEmb = tf.variable(tf.randomNormal([numItems, this.embeddingDim], 0, 0.05), true, 'itemEmb');
+    // --- Embedding tables (UNIQUE NAMES) ---
+    this.userEmb = tf.variable(
+      tf.randomNormal([numUsers, this.embeddingDim], 0, 0.05),
+      true,
+      `userEmb_${this.uid}`
+    );
+    this.itemEmb = tf.variable(
+      tf.randomNormal([numItems, this.embeddingDim], 0, 0.05),
+      true,
+      `itemEmb_${this.uid}`
+    );
 
-    // --- Deep tower weights (if enabled) ---
     if (this.useDeep) {
-      // User tower dense stacks
       const uIn = this.embeddingDim + this.userFeatDim;
       this.userW = this._makeDenseStack('U', uIn, this.userHidden);
 
-      // Item tower dense stacks
       const iIn = this.embeddingDim + this.numGenres;
       this.itemW = this._makeDenseStack('I', iIn, this.itemHidden);
     }
 
     this.optimizer = tf.train.adam(this.lr);
-
-    // Cache for all item vectors (after buildItemIndex)
-    this.itemIndex = null; // [numItems, towerOutDim]
+    this.itemIndex = null;
   }
 
-  // Create weights for a stack of Dense layers
   _makeDenseStack(prefix, inDim, sizes) {
     const W = [];
     let prev = inDim;
     sizes.forEach((units, layerIdx) => {
-      const nameW = `${prefix}_W_${layerIdx}`;
-      const nameB = `${prefix}_b_${layerIdx}`;
+      const nameW = `${prefix}_${this.uid}_W_${layerIdx}`;
+      const nameB = `${prefix}_${this.uid}_b_${layerIdx}`;
       W.push({
-        W: tf.variable(tf.randomNormal([prev, units], 0, Math.sqrt(2 / (prev + units))), true, nameW),
+        W: tf.variable(
+          tf.randomNormal([prev, units], 0, Math.sqrt(2 / (prev + units))),
+          true,
+          nameW
+        ),
         b: tf.variable(tf.zeros([units]), true, nameB)
       });
       prev = units;
@@ -95,53 +66,36 @@ class TwoTowerModel {
     return W;
   }
 
-  // x: [B, d]  weights: stack from _makeDenseStack
   _forwardMLP(x, weights) {
     let h = x;
     for (let i = 0; i < weights.length; i++) {
       const { W, b } = weights[i];
       h = tf.add(tf.matMul(h, W), b);
-      // ReLU on all but last; keep last linear (can also use ReLU if desired)
-      if (i < weights.length - 1) {
-        h = tf.relu(h);
-      }
+      if (i < weights.length - 1) h = tf.relu(h);
     }
-    return h; // [B, lastUnits]
+    return h;
   }
 
-  // Build user vectors from ids + optional features
-  // userIdx: [B] int32; userFeats: [B, userFeatDim] or null
   _userTower(userIdx, userFeats = null) {
-    const uEmb = tf.gather(this.userEmb, userIdx); // [B, emb]
+    const uEmb = tf.gather(this.userEmb, userIdx);
     if (!this.useDeep) return uEmb;
-
     let uX = uEmb;
-    if (this.userFeatDim > 0 && userFeats) {
-      uX = tf.concat([uX, userFeats], 1); // [B, emb+feat]
-    }
-    return this._forwardMLP(uX, this.userW); // [B, out]
+    if (this.userFeatDim > 0 && userFeats) uX = tf.concat([uX, userFeats], 1);
+    return this._forwardMLP(uX, this.userW);
   }
 
-  // Build item vectors from ids + genres
-  // itemIdx: [B] int32; itemGenres: [B, numGenres] or null if numGenres==0
   _itemTower(itemIdx, itemGenres = null) {
-    const iEmb = tf.gather(this.itemEmb, itemIdx); // [B, emb]
+    const iEmb = tf.gather(this.itemEmb, itemIdx);
     if (!this.useDeep) return iEmb;
-
     let iX = iEmb;
-    if (this.numGenres > 0 && itemGenres) {
-      iX = tf.concat([iX, itemGenres], 1); // [B, emb+genres]
-    }
-    return this._forwardMLP(iX, this.itemW); // [B, out]
+    if (this.numGenres > 0 && itemGenres) iX = tf.concat([iX, itemGenres], 1);
+    return this._forwardMLP(iX, this.itemW);
   }
 
-  // In-batch sampled softmax loss: diagonal is true match
   _batchSoftmaxLoss(U, V) {
-    // logits = U @ V^T  shape [B,B]
-    const logits = tf.matMul(U, V, false, true);
+    const logits = tf.matMul(U, V, false, true); // [B,B]
     const labels = tf.oneHot(tf.range(0, logits.shape[0], 1, 'int32'), logits.shape[1]);
     const ce = tf.losses.softmaxCrossEntropy(labels, logits);
-    // Optional L2
     if (this.l2Reg > 0) {
       const l2 = tf.add(tf.sum(tf.square(U)), tf.sum(tf.square(V)));
       return tf.add(ce, tf.mul(this.l2Reg, l2));
@@ -149,29 +103,22 @@ class TwoTowerModel {
     return ce;
   }
 
-  // One training step
-  // inputs: { userIdx:[B], itemIdx:[B], userFeats:[B,F]? , itemGenres:[B,G]? }
   async trainStep(userIdxArr, itemIdxArr, inputs = {}) {
     const { userFeats = null, itemGenres = null } = inputs;
-
     const lossVal = await this.optimizer.minimize(() => {
       return tf.tidy(() => {
         const userIdx = tf.tensor1d(userIdxArr, 'int32');
         const itemIdx = tf.tensor1d(itemIdxArr, 'int32');
-
         const uF = (this.userFeatDim > 0 && userFeats) ? tf.tensor2d(userFeats) : null;
         const iG = (this.numGenres > 0 && itemGenres) ? tf.tensor2d(itemGenres) : null;
 
-        const U = this._userTower(userIdx, uF); // [B, d]
-        const V = this._itemTower(itemIdx, iG); // [B, d]
-
+        const U = this._userTower(userIdx, uF);
+        const V = this._itemTower(itemIdx, iG);
         const loss = this._batchSoftmaxLoss(U, V);
 
-        // tidy cleanup
         userIdx.dispose(); itemIdx.dispose();
         if (uF) uF.dispose();
         if (iG) iG.dispose();
-
         return loss;
       });
     }, true);
@@ -181,67 +128,48 @@ class TwoTowerModel {
     return scalar;
   }
 
-  // Compute and cache all item vectors for fast recommendation
-  // allItemGenres: [numItems, numGenres] (required if numGenres>0 && useDeep)
   buildItemIndex(allItemGenres = null) {
     tf.tidy(() => {
-      let V = this.itemEmb; // [N, emb]
+      let V = this.itemEmb;
       if (this.useDeep) {
         let x = V;
         if (this.numGenres > 0) {
-          if (!allItemGenres) {
-            throw new Error('buildItemIndex: item genres required but not provided');
-          }
-          x = tf.concat([x, allItemGenres], 1); // [N, emb+genres]
+          if (!allItemGenres) throw new Error('buildItemIndex requires item genres');
+          x = tf.concat([x, allItemGenres], 1);
         }
-        // Pass through item tower MLP
         for (let i = 0; i < this.itemW.length; i++) {
           const { W, b } = this.itemW[i];
           x = tf.add(tf.matMul(x, W), b);
           if (i < this.itemW.length - 1) x = tf.relu(x);
         }
-        V = x; // [N, out]
+        V = x;
       }
       if (this.itemIndex) this.itemIndex.dispose();
-      this.itemIndex = V.clone(); // cache
+      this.itemIndex = V.clone();
     });
   }
 
-  // Score all items for a single user id (0-based)
-  // Optional: userFeatRow: [1, F]
   async scoreAllForUser(userId, userFeatRow = null) {
-    if (!this.itemIndex) throw new Error('Call buildItemIndex() after training first');
-
+    if (!this.itemIndex) throw new Error('Call buildItemIndex() after training');
     const scoresTensor = tf.tidy(() => {
-      const idx = tf.tensor1d([userId], 'int32'); // [1]
-      let u = tf.gather(this.userEmb, idx);       // [1, emb]
+      const idx = tf.tensor1d([userId], 'int32');
+      let u = tf.gather(this.userEmb, idx);
       if (this.useDeep) {
-        if (this.userFeatDim > 0 && userFeatRow) {
-          u = tf.concat([u, userFeatRow], 1);     // [1, emb+F]
-        }
-        // user MLP
+        if (this.userFeatDim > 0 && userFeatRow) u = tf.concat([u, userFeatRow], 1);
         for (let i = 0; i < this.userW.length; i++) {
           const { W, b } = this.userW[i];
           u = tf.add(tf.matMul(u, W), b);
           if (i < this.userW.length - 1) u = tf.relu(u);
         }
       }
-      // scores = u @ itemIndex^T -> [1, N]
       return tf.matMul(u, this.itemIndex, false, true);
     });
-
     const scores = Array.from(await scoresTensor.data());
     scoresTensor.dispose();
-    // Top indices (descending)
-    const topIdx = scores
-      .map((s, i) => [s, i])
-      .sort((a, b) => b[0] - a[0])
-      .map(x => x[1]);
-
+    const topIdx = scores.map((s, i) => [s, i]).sort((a,b)=>b[0]-a[0]).map(x=>x[1]);
     return { scores, topIdx };
   }
 
-  // Get raw item embedding vectors (shallow) or tower vectors (deep)
   getItemVectors() {
     if (!this.itemIndex) throw new Error('Call buildItemIndex() first');
     return this.itemIndex;
