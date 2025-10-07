@@ -1,62 +1,105 @@
 /* app.js — Controller for Two-Tower Movie Recommender (shallow + deep)
- * Requires: two-tower.js, u.item, u.data in the same folder.
+ * Option B: robust loader tries several directories for u.item / u.data
+ * Requires: two-tower.js
  */
 
-function byId(id){ return document.getElementById(id); }
-const loadBtn = byId('loadBtn');
-const trainBtn = byId('trainBtn');
-const testBtn = byId('testBtn');
-const lossCanvas = byId('lossChart');
-const embCanvas  = byId('embeddingChart');
-const resultsDiv = byId('results');
+function $id(id){ return document.getElementById(id); }
+const loadBtn = $id('loadBtn');
+const trainBtn = $id('trainBtn');
+const testBtn  = $id('testBtn');
+const lossCanvas = $id('lossChart');
+const embCanvas  = $id('embeddingChart');
+const resultsDiv = $id('results');
 
 function setStatus(msg) {
-  const el = byId('status-line');
+  const el = $id('status-line');
   if (el) el.textContent = msg; else console.log('[STATUS]', msg);
 }
 
+/* --------------------- Data holders --------------------- */
 let movies = [];        // [{rawId, idx, title, genres:[19]}]
 let ratings = [];       // [{uRaw, iRaw, uIdx, iIdx, rating, ts}]
 let numUsers = 0, numItems = 0;
-const numGenres = 19;   // MovieLens 100K
+const numGenres = 19;   // MovieLens 100K genres
 
 let userIdToIdx = new Map();
 let itemIdToIdx = new Map();
-let idxToMovie = [];
-let userHist = new Map();
+let idxToMovie  = [];
+let userHist    = new Map();
 
 let allItemGenres = null;     // Float32Array [numItems * 19]
-let filteredUserIdx = [];     // users with >= MIN_USER_RATINGS
+let filteredUserIdx = [];     // users with ≥ MIN_USER_RATINGS
 const MIN_USER_RATINGS = 20;
 
-let shallow = null;
-let deep    = null;
+/* --------------------- Models --------------------- */
+let shallow = null; // TwoTowerModel useDeep=false
+let deep    = null; // TwoTowerModel useDeep=true
 
-// -------- Load dataset --------
+/* --------------------- Load data (Option B) --------------------- */
 async function loadData() {
-  setStatus('Loading dataset (u.item & u.data)...');
+  setStatus('Loading dataset…');
   trainBtn.disabled = true;
-  testBtn.disabled = true;
+  testBtn.disabled  = true;
 
-  const itemRes = await fetch('u.item');
-  const dataRes = await fetch('u.data');
-  if (!itemRes.ok) throw new Error(`Failed to fetch u.item (${itemRes.status})`);
-  if (!dataRes.ok) throw new Error(`Failed to fetch u.data (${dataRes.status})`);
+  // 👉 Add / edit directories to match your repo layout
+  const CANDIDATE_DIRS = [
+    '.',         // same folder as index.html
+    './data',
+    './week4',
+    './ml-100k'
+  ];
 
-  const itemText = await itemRes.text();
-  const dataText = await dataRes.text();
+  async function tryFetch(path) {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(`${path} → ${res.status} ${res.statusText}`);
+    const txt = await res.text();
+    if (!txt.trim()) throw new Error(`${path} is empty`);
+    return txt;
+  }
+
+  let itemText = null, dataText = null, usedDir = null, errors = [];
+  for (const dir of CANDIDATE_DIRS) {
+    try {
+      const [it, dt] = await Promise.all([
+        tryFetch(`${dir}/u.item`),
+        tryFetch(`${dir}/u.data`)
+      ]);
+      itemText = it; dataText = dt; usedDir = dir;
+      break;
+    } catch (e) {
+      errors.push(e.message);
+    }
+  }
+
+  if (!itemText || !dataText) {
+    setStatus(
+      'Load error: Could not find u.item / u.data.\n' +
+      'Tried:\n' + errors.map(x => '• ' + x).join('\n')
+    );
+    console.error('Tried paths:\n' + errors.join('\n'));
+    return;
+  }
 
   parseItems(itemText);
   parseRatings(dataText);
   buildUserHistories();
 
-  filteredUserIdx = Array.from(userHist.keys()).filter(u => userHist.get(u).length >= MIN_USER_RATINGS);
+  filteredUserIdx = Array.from(userHist.keys())
+    .filter(u => userHist.get(u).length >= MIN_USER_RATINGS);
 
-  setStatus(`Loaded ${numItems} movies, ${numUsers} users, ${ratings.length} ratings. Users with ≥${MIN_USER_RATINGS} ratings: ${filteredUserIdx.length}`);
-  // ✅ Enable Train now that data is ready
-  trainBtn.disabled = false;
+  setStatus(
+    `Loaded from "${usedDir}" — ${numItems} movies, ${numUsers} users, ` +
+    `${ratings.length} ratings. Users with ≥${MIN_USER_RATINGS}: ${filteredUserIdx.length}`
+  );
+
+  if (numItems > 0 && numUsers > 0 && ratings.length > 0) {
+    trainBtn.disabled = false; // ✅ enable Train
+  } else {
+    setStatus('Data parsed but zero rows found — check file formats.');
+  }
 }
 
+/* --------------------- Parsing helpers --------------------- */
 function parseItems(text) {
   movies = []; itemIdToIdx.clear(); idxToMovie = [];
   const lines = text.split('\n').filter(Boolean);
@@ -65,7 +108,8 @@ function parseItems(text) {
     if (parts.length < 2 + numGenres) continue;
     const rawId = parseInt(parts[0], 10);
     const title = parts[1];
-    const genreFlags = parts.slice(parts.length - numGenres).map(v => parseInt(v, 10) || 0);
+    const genreFlags = parts.slice(parts.length - numGenres)
+      .map(v => parseInt(v, 10) || 0);
     const idx = movies.length;
     const m = { rawId, idx, title, genres: genreFlags };
     movies.push(m);
@@ -92,7 +136,7 @@ function parseRatings(text) {
     const iRaw = parseInt(iRawS, 10);
     const r    = parseFloat(rS);
     const ts   = parseInt(tsS, 10) || 0;
-    if (!itemIdToIdx.has(iRaw)) continue;
+    if (!itemIdToIdx.has(iRaw)) continue; // skip unknown movie ids
     if (!userIdToIdx.has(uRaw)) userIdToIdx.set(uRaw, userIdToIdx.size);
     const uIdx = userIdToIdx.get(uRaw);
     const iIdx = itemIdToIdx.get(iRaw);
@@ -104,53 +148,44 @@ function parseRatings(text) {
 
 function buildUserHistories() {
   userHist = new Map();
-  ratings.forEach(({uIdx,iIdx,rating,ts}) => {
+  ratings.forEach(({uIdx, iIdx, rating, ts}) => {
     if (!userHist.has(uIdx)) userHist.set(uIdx, []);
     userHist.get(uIdx).push({ iIdx, rating, ts });
   });
   for (const u of userHist.keys()) {
-    userHist.get(u).sort((a,b)=> b.ts - a.ts);
+    userHist.get(u).sort((a,b)=> b.ts - a.ts); // most recent first
   }
 }
 
-// -------- Training --------
+/* --------------------- Training --------------------- */
 async function train() {
-  // ✅ Clear TF registered variables so we always start fresh
-  if (tf.disposeVariables) {
-    tf.disposeVariables();
-  } else {
-    for (const name in tf.engine().registeredVariables) {
-      tf.dispose(tf.engine().registeredVariables[name]);
+  // Clear TF variables to avoid name collisions
+  if (tf.disposeVariables) tf.disposeVariables();
+  else {
+    for (const n in tf.engine().registeredVariables) {
+      tf.dispose(tf.engine().registeredVariables[n]);
     }
     tf.engine().registeredVariables = {};
     tf.engine().state.registeredVariables = {};
   }
 
   if (!ratings.length) { setStatus('Load data first.'); return; }
-  setStatus('Initializing models...');
-  trainBtn.disabled = true;
-  testBtn.disabled = true;
+  setStatus('Initializing models…');
+  trainBtn.disabled = true; testBtn.disabled = true;
 
   shallow?.dispose?.(); deep?.dispose?.();
 
   shallow = new TwoTowerModel(numUsers, numItems, {
-    embeddingDim: 32,
-    useDeep: false,
-    numGenres, // not used by shallow
-    lr: 1e-3
+    embeddingDim: 32, useDeep: false, numGenres, lr: 1e-3
   });
 
   deep = new TwoTowerModel(numUsers, numItems, {
-    embeddingDim: 32,
-    useDeep: true,
-    userHidden: [64, 32],
-    itemHidden: [64, 32],
-    numGenres,      // use genres in deep item tower
-    userFeatDim: 0, // set >0 if you later add user features
-    lr: 1e-3
+    embeddingDim: 32, useDeep: true,
+    userHidden: [64, 32], itemHidden: [64, 32],
+    numGenres, userFeatDim: 0, lr: 1e-3
   });
 
-  const trainPairs = ratings.filter(r => userHist.get(r.uIdx)?.length >= 20);
+  const trainPairs = ratings.filter(r => (userHist.get(r.uIdx)?.length || 0) >= MIN_USER_RATINGS);
   const epochs = 5, batchSize = 512;
   const lossesShallow = [], lossesDeep = [];
   const ctx = lossCanvas?.getContext('2d'); clearCanvas(lossCanvas);
@@ -187,7 +222,7 @@ async function train() {
     setStatus(`Epoch ${ep+1}/${epochs} — shallow: ${lossesShallow.at(-1).toFixed(4)} | deep: ${lossesDeep.at(-1).toFixed(4)}`);
   }
 
-  // Build indices for recommendation
+  // Build item indices for recommendation
   shallow.buildItemIndex();
   const allItemGenres2D = tf.tensor2d(allItemGenres, [numItems, numGenres]);
   deep.buildItemIndex(allItemGenres2D);
@@ -200,7 +235,7 @@ async function train() {
   trainBtn.disabled = false;
 }
 
-// -------- Testing / Results --------
+/* --------------------- Testing / Results --------------------- */
 async function test() {
   if (!shallow || !deep) { setStatus('Train the models first.'); return; }
   const uIdx = filteredUserIdx.length ? filteredUserIdx[Math.floor(Math.random()*filteredUserIdx.length)] : 0;
@@ -251,7 +286,9 @@ function renderTables(uIdx, topRatedIdx, topRecIdx, topDeepIdx) {
 
 function buildTable(title, itemIdxList) {
   const card = document.createElement('div');
-  card.style.border = '1px solid #e2e8f0'; card.style.borderRadius = '10px'; card.style.padding = '10px';
+  card.style.border = '1px solid #e2e8f0';
+  card.style.borderRadius = '10px';
+  card.style.padding = '10px';
   const h = document.createElement('h4'); h.textContent = title; card.appendChild(h);
   const table = document.createElement('table');
   table.innerHTML = `<thead><tr><th>#</th><th>Movie</th></tr></thead>`;
@@ -265,7 +302,7 @@ function buildTable(title, itemIdxList) {
   table.appendChild(tb); card.appendChild(table); return card;
 }
 
-// -------- Charts --------
+/* --------------------- Charts --------------------- */
 function clearCanvas(cnv) {
   if (!cnv) return;
   const ctx = cnv.getContext('2d');
@@ -321,21 +358,19 @@ async function drawEmbeddingPCA(itemVectors) {
   mean.dispose(); Xc.dispose(); cov.dispose(); eigVecs.dispose(); W.dispose(); proj.dispose();
 }
 
-// -------- Wire buttons --------
+/* --------------------- Buttons --------------------- */
 loadBtn?.addEventListener('click', async () => {
   try { await loadData(); }
   catch(e){ setStatus('Load error: '+e.message); console.error(e); }
 });
-
 trainBtn?.addEventListener('click', async () => {
   try { await train(); }
   catch(e){ setStatus('Train error: '+e.message); console.error(e); trainBtn.disabled = false; }
 });
-
 testBtn?.addEventListener('click', async () => {
   try { await test(); }
   catch(e){ setStatus('Test error: '+e.message); console.error(e); }
 });
 
-// Optional auto-load (you can comment out)
+// Optional: auto-load
 // document.addEventListener('DOMContentLoaded', () => loadBtn?.click());
