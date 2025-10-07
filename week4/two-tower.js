@@ -101,29 +101,34 @@ class TwoTowerModel {
     return ce;
   }
 
-  async trainStep(userIdxArr, itemIdxArr, { userFeats=null, itemGenres=null } = {}) {
-    const lossVal = await this.optimizer.minimize(() => {
-      return tf.tidy(() => {
-        const uIdx = tf.tensor1d(userIdxArr, 'int32');
-        const iIdx = tf.tensor1d(itemIdxArr, 'int32');
-        const uF = (this.userFeatDim > 0 && userFeats) ? tf.tensor2d(userFeats) : null;
-        const iG = (this.numGenres > 0 && itemGenres) ? tf.tensor2d(itemGenres) : null;
+  // one training step that is robust to disposal timing
+async trainStep(userIdxArr, itemIdxArr, { userFeats = null, itemGenres = null } = {}) {
+  // Run one minimize step and keep the returned loss tensor.
+  const lossTensor = this.optimizer.minimize(() => {
+    return tf.tidy(() => {
+      // ---- build batch tensors inside tidy ----
+      const userIdx = tf.tensor1d(userIdxArr, 'int32');
+      const itemIdx = tf.tensor1d(itemIdxArr, 'int32');
 
-        const U = this._userTower(uIdx, uF);
-        const V = this._itemTower(iIdx, iG);
-        const loss = this._batchSoftmaxLoss(U, V);
+      const uF = (this.userFeatDim > 0 && userFeats) ? tf.tensor2d(userFeats) : null;
+      const iG = (this.numGenres > 0 && itemGenres) ? tf.tensor2d(itemGenres) : null;
 
-        uIdx.dispose(); iIdx.dispose();
-        if (uF) uF.dispose();
-        if (iG) iG.dispose();
-        return loss;
-      });
-    }, true);
+      const U = this._userTower(userIdx, uF);   // [B, d]
+      const V = this._itemTower(itemIdx, iG);   // [B, d]
 
-    const scalar = (await lossVal.data())[0];
-    lossVal.dispose?.();
-    return scalar;
-  }
+      const loss = this._batchSoftmaxLoss(U, V);  // scalar
+
+      // cleanup of inputs (everything created in tidy will be freed)
+      return loss;  // return the scalar to optimizer.minimize
+    });
+  }, /* returnCost= */ true);
+
+  // ⚠️ Read it immediately and synchronously, then dispose.
+  const val = lossTensor.dataSync()[0];
+  lossTensor.dispose();
+  return val; // number
+}
+
 
   buildItemIndex(allItemGenres = null) {
     tf.tidy(() => {
