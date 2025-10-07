@@ -146,6 +146,17 @@ function buildUserHistories() {
 // Training
 ///////////////////////
 async function train() {
+  // reset TensorFlow.js variable registry
+  for (const name in tf.engine().registeredVariables) {
+    tf.dispose(tf.engine().registeredVariables[name]);
+  }
+  tf.engine().registeredVariables = {};
+  tf.engine().state.registeredVariables = {};
+
+  if (!ratings.length) throw new Error('Load data first.');
+  setStatus('Initializing models...');
+  ...
+}
   if (!ratings.length) throw new Error('Load data first.');
   setStatus('Initializing models...');
 
