@@ -1,5 +1,6 @@
 /* two-tower.js — Two-Tower retrieval model for TF.js
- * Supports shallow (embed•dot) and deep (MLP towers with genres).
+ * - Shallow (embed•dot) and Deep (MLP towers with genres)
+ * - Unique variable names per model instance (avoid collisions)
  */
 
 class TwoTowerModel {
@@ -7,7 +8,7 @@ class TwoTowerModel {
     this.numUsers = numUsers;
     this.numItems = numItems;
 
-    // Unique suffix so TF.js registered variable names never collide
+    // unique suffix so TF.js variable names never collide
     this.uid = `m${Date.now()}_${Math.floor(Math.random() * 1e9)}`;
 
     this.embeddingDim = opts.embeddingDim ?? 32;
@@ -27,7 +28,7 @@ class TwoTowerModel {
     this.l2Reg       = opts.l2Reg ?? 0.0;
     this.lr          = opts.lr ?? 1e-3;
 
-    // Embeddings (UNIQUE NAMES)
+    // embeddings (unique names)
     this.userEmb = tf.variable(
       tf.randomNormal([numUsers, this.embeddingDim], 0, 0.05),
       true, `userEmb_${this.uid}`
@@ -45,22 +46,22 @@ class TwoTowerModel {
     }
 
     this.optimizer = tf.train.adam(this.lr);
-    this.itemIndex = null;
+    this.itemIndex = null; // cached item tower vectors for scoring
   }
 
   _makeDenseStack(prefix, inDim, sizes) {
-    const W = [];
+    const layers = [];
     let prev = inDim;
-    sizes.forEach((units, layerIdx) => {
-      const nameW = `${prefix}_${this.uid}_W_${layerIdx}`;
-      const nameB = `${prefix}_${this.uid}_b_${layerIdx}`;
-      W.push({
-        W: tf.variable(tf.randomNormal([prev, units], 0, Math.sqrt(2 / (prev + units))), true, nameW),
+    sizes.forEach((units, k) => {
+      const nameW = `${prefix}_${this.uid}_W_${k}`;
+      const nameB = `${prefix}_${this.uid}_b_${k}`;
+      layers.push({
+        W: tf.variable(tf.randomNormal([prev, units], 0, Math.sqrt(2/(prev+units))), true, nameW),
         b: tf.variable(tf.zeros([units]), true, nameB)
       });
       prev = units;
     });
-    return W;
+    return layers;
   }
 
   _forwardMLP(x, weights) {
@@ -78,7 +79,7 @@ class TwoTowerModel {
     if (!this.useDeep) return uEmb;
     let uX = uEmb;
     if (this.userFeatDim > 0 && userFeats) uX = tf.concat([uX, userFeats], 1);
-    return this._forwardMLP(uX, this.userW); // [B, out]
+    return this._forwardMLP(uX, this.userW);      // [B, out]
   }
 
   _itemTower(itemIdx, itemGenres = null) {
@@ -86,11 +87,11 @@ class TwoTowerModel {
     if (!this.useDeep) return iEmb;
     let iX = iEmb;
     if (this.numGenres > 0 && itemGenres) iX = tf.concat([iX, itemGenres], 1);
-    return this._forwardMLP(iX, this.itemW); // [B, out]
+    return this._forwardMLP(iX, this.itemW);      // [B, out]
   }
 
   _batchSoftmaxLoss(U, V) {
-    const logits = tf.matMul(U, V, false, true);             // [B,B]
+    const logits = tf.matMul(U, V, false, true); // [B,B]
     const labels = tf.oneHot(tf.range(0, logits.shape[0], 1, 'int32'), logits.shape[1]);
     const ce = tf.losses.softmaxCrossEntropy(labels, logits);
     if (this.l2Reg > 0) {
@@ -100,20 +101,19 @@ class TwoTowerModel {
     return ce;
   }
 
-  async trainStep(userIdxArr, itemIdxArr, inputs = {}) {
-    const { userFeats = null, itemGenres = null } = inputs;
+  async trainStep(userIdxArr, itemIdxArr, { userFeats=null, itemGenres=null } = {}) {
     const lossVal = await this.optimizer.minimize(() => {
       return tf.tidy(() => {
-        const userIdx = tf.tensor1d(userIdxArr, 'int32');
-        const itemIdx = tf.tensor1d(itemIdxArr, 'int32');
+        const uIdx = tf.tensor1d(userIdxArr, 'int32');
+        const iIdx = tf.tensor1d(itemIdxArr, 'int32');
         const uF = (this.userFeatDim > 0 && userFeats) ? tf.tensor2d(userFeats) : null;
         const iG = (this.numGenres > 0 && itemGenres) ? tf.tensor2d(itemGenres) : null;
 
-        const U = this._userTower(userIdx, uF);
-        const V = this._itemTower(itemIdx, iG);
+        const U = this._userTower(uIdx, uF);
+        const V = this._itemTower(iIdx, iG);
         const loss = this._batchSoftmaxLoss(U, V);
 
-        userIdx.dispose(); itemIdx.dispose();
+        uIdx.dispose(); iIdx.dispose();
         if (uF) uF.dispose();
         if (iG) iG.dispose();
         return loss;
@@ -159,7 +159,7 @@ class TwoTowerModel {
           if (i < this.userW.length - 1) u = tf.relu(u);
         }
       }
-      return tf.matMul(u, this.itemIndex, false, true);
+      return tf.matMul(u, this.itemIndex, false, true); // [1, N]
     });
     const scores = Array.from(await scoresTensor.data());
     scoresTensor.dispose();
