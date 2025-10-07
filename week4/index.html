@@ -3,26 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Two-Tower Movie Recommender</title>
+  <title>Two-Tower Movie Recommender (TensorFlow.js)</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
   <style>
-    body { font-family: "Segoe UI", Roboto, sans-serif; background: #f7faff; color: #333; margin: 0; }
-    h1 { color: #2a7de1; margin: 20px 0; text-align: center; }
-    #controls { display: flex; gap: 10px; justify-content: center; margin-bottom: 16px; }
-    button { background:#2a7de1; border:none; border-radius:8px; color:#fff; font-weight:600; padding:10px 20px; cursor:pointer; }
-    button:hover:not(:disabled){ background:#1f5abf; }
+    :root { --brand:#2a7de1; }
+    body { font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial; background:#f6f9ff; color:#233; margin:0; }
+    header { display:flex; align-items:center; gap:10px; padding:16px 20px; }
+    header h1 { color:var(--brand); font-size:36px; margin:0; }
+    #controls { display:flex; gap:12px; justify-content:center; margin:10px 0 6px; }
+    button { background:var(--brand); border:none; border-radius:10px; color:#fff; padding:10px 20px; font-weight:700; cursor:pointer; }
+    button:hover:not(:disabled){ filter:brightness(0.93); }
     button:disabled{ background:#cbd5e1; cursor:not-allowed; }
-    #charts { display:flex; flex-wrap:wrap; gap:16px; justify-content:center; margin: 0 12px 16px; }
-    canvas { border:1px solid #e2e8f0; border-radius:10px; background:#fff; width:480px; height:260px; }
-    #results { width:clamp(320px, 95%, 1200px); background:#fff; border-radius:10px; padding:16px; margin: 0 auto 32px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+    #charts { display:flex; flex-wrap:wrap; gap:16px; justify-content:center; padding:8px 12px; }
+    canvas { border:1px solid #e2e8f0; border-radius:12px; background:#fff; width:520px; height:280px; }
+    #results { width:clamp(320px, 96%, 1200px); background:#fff; border-radius:12px; margin: 8px auto 32px; padding:16px; box-shadow:0 2px 6px rgba(0,0,0,.05); }
     table { width:100%; border-collapse:collapse; font-size:14px; }
-    th, td { border-bottom: 1px solid #edf2f7; padding:6px 8px; text-align:left; }
+    th, td { border-bottom:1px solid #eef2f7; padding:6px 8px; text-align:left; }
     th { background:#f8fafc; }
     h3, h4 { margin: 8px 0; }
   </style>
 </head>
 <body>
-  <h1>🎬 Two-Tower Movie Recommender (TensorFlow.js)</h1>
+  <header>
+    <div style="font-size:32px;">🎬</div>
+    <h1>Two-Tower Movie Recommender (TensorFlow.js)</h1>
+  </header>
 
   <div id="controls">
     <button id="loadBtn">Load Data</button>
@@ -31,12 +36,12 @@
   </div>
 
   <div id="charts">
-    <canvas id="lossChart" width="480" height="260"></canvas>
-    <canvas id="embeddingChart" width="480" height="260"></canvas>
+    <canvas id="lossChart" width="520" height="280"></canvas>
+    <canvas id="embeddingChart" width="520" height="280"></canvas>
   </div>
 
   <div id="results">
-    <p id="status-line">Click <b>Load Data</b> to begin. Make sure <code>u.item</code> and <code>u.data</code> are in the same folder as this page.</p>
+    <p id="status-line">Put <code>u.item</code> and <code>u.data</code> in <code>./data/</code>, then click <b>Load Data</b>.</p>
   </div>
 
   <!-- App scripts (order matters) -->
