@@ -1,6 +1,7 @@
 /* two-tower.js — Two-Tower retrieval model for TF.js
- * - Shallow (embed•dot) and Deep (MLP towers with genres)
- * - Unique variable names per model instance (avoid collisions)
+ * - Shallow (embed•dot) and Deep (MLP towers w/ genres)
+ * - Unique variable names per instance (avoid collisions)
+ * - Robust trainStep (no "Tensor is disposed")
  */
 
 class TwoTowerModel {
@@ -11,6 +12,7 @@ class TwoTowerModel {
     // unique suffix so TF.js variable names never collide
     this.uid = `m${Date.now()}_${Math.floor(Math.random() * 1e9)}`;
 
+    // options
     this.embeddingDim = opts.embeddingDim ?? 32;
     this.useDeep      = !!opts.useDeep;
     this.userHidden   = (opts.userHidden ?? [64, this.embeddingDim]).slice();
@@ -23,8 +25,8 @@ class TwoTowerModel {
     }
     this.towerOutDim = this.useDeep ? uLast : this.embeddingDim;
 
-    this.numGenres   = opts.numGenres ?? 0;
-    this.userFeatDim = opts.userFeatDim ?? 0;
+    this.numGenres   = opts.numGenres ?? 0;   // item side features (19 for ML-100K)
+    this.userFeatDim = opts.userFeatDim ?? 0; // optional user features
     this.l2Reg       = opts.l2Reg ?? 0.0;
     this.lr          = opts.lr ?? 1e-3;
 
@@ -38,6 +40,7 @@ class TwoTowerModel {
       true, `itemEmb_${this.uid}`
     );
 
+    // deep towers
     if (this.useDeep) {
       const uIn = this.embeddingDim + this.userFeatDim;
       this.userW = this._makeDenseStack('U', uIn, this.userHidden);
@@ -46,7 +49,7 @@ class TwoTowerModel {
     }
 
     this.optimizer = tf.train.adam(this.lr);
-    this.itemIndex = null; // cached item tower vectors for scoring
+    this.itemIndex = null; // cached item vectors for fast scoring
   }
 
   _makeDenseStack(prefix, inDim, sizes) {
@@ -101,34 +104,28 @@ class TwoTowerModel {
     return ce;
   }
 
-  // one training step that is robust to disposal timing
-async trainStep(userIdxArr, itemIdxArr, { userFeats = null, itemGenres = null } = {}) {
-  // Run one minimize step and keep the returned loss tensor.
-  const lossTensor = this.optimizer.minimize(() => {
-    return tf.tidy(() => {
-      // ---- build batch tensors inside tidy ----
-      const userIdx = tf.tensor1d(userIdxArr, 'int32');
-      const itemIdx = tf.tensor1d(itemIdxArr, 'int32');
+  // ---- robust train step (prevents "Tensor is disposed") ----
+  async trainStep(userIdxArr, itemIdxArr, { userFeats = null, itemGenres = null } = {}) {
+    const lossTensor = this.optimizer.minimize(() => {
+      return tf.tidy(() => {
+        const uIdx = tf.tensor1d(userIdxArr, 'int32');
+        const iIdx = tf.tensor1d(itemIdxArr, 'int32');
+        const uF = (this.userFeatDim > 0 && userFeats) ? tf.tensor2d(userFeats) : null;
+        const iG = (this.numGenres > 0 && itemGenres) ? tf.tensor2d(itemGenres) : null;
 
-      const uF = (this.userFeatDim > 0 && userFeats) ? tf.tensor2d(userFeats) : null;
-      const iG = (this.numGenres > 0 && itemGenres) ? tf.tensor2d(itemGenres) : null;
+        const U = this._userTower(uIdx, uF);
+        const V = this._itemTower(iIdx, iG);
+        const loss = this._batchSoftmaxLoss(U, V); // scalar
 
-      const U = this._userTower(userIdx, uF);   // [B, d]
-      const V = this._itemTower(itemIdx, iG);   // [B, d]
+        // tidy will clean up all intermediates we created above
+        return loss;
+      });
+    }, true);
 
-      const loss = this._batchSoftmaxLoss(U, V);  // scalar
-
-      // cleanup of inputs (everything created in tidy will be freed)
-      return loss;  // return the scalar to optimizer.minimize
-    });
-  }, /* returnCost= */ true);
-
-  // ⚠️ Read it immediately and synchronously, then dispose.
-  const val = lossTensor.dataSync()[0];
-  lossTensor.dispose();
-  return val; // number
-}
-
+    const val = lossTensor.dataSync()[0]; // read immediately
+    lossTensor.dispose();
+    return val;
+  }
 
   buildItemIndex(allItemGenres = null) {
     tf.tidy(() => {
@@ -166,7 +163,7 @@ async trainStep(userIdxArr, itemIdxArr, { userFeats = null, itemGenres = null } 
       }
       return tf.matMul(u, this.itemIndex, false, true); // [1, N]
     });
-    const scores = Array.from(await scoresTensor.data());
+    const scores = Array.from(scoresTensor.dataSync());
     scoresTensor.dispose();
     const topIdx = scores.map((s, i) => [s, i]).sort((a,b)=>b[0]-a[0]).map(x=>x[1]);
     return { scores, topIdx };
