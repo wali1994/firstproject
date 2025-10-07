@@ -1,52 +1,158 @@
+<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Two-Tower Movie Recommender (TensorFlow.js)</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
+  <title>Two-Tower Retrieval (MovieLens 100K, TF.js)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    :root { --brand:#2a7de1; }
+    :root {
+      --bg: #0f172a;
+      --fg: #e2e8f0;
+      --muted: #94a3b8;
+      --accent1: #22d3ee;
+      --accent2: #8b5cf6;
+      --card: #111827;
+      --good: #10b981;
+      --warn: #f59e0b;
+    }
     * { box-sizing: border-box; }
-    body { font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial; background:#f6f9ff; color:#233; margin:0; }
-    header { display:flex; align-items:center; gap:10px; padding:18px 20px; }
-    header h1 { color:var(--brand); font-size:40px; margin:0; }
-    #controls { display:flex; gap:12px; justify-content:center; margin:6px 0 10px; }
-    button { background:var(--brand); border:none; border-radius:12px; color:#fff; padding:12px 22px; font-weight:700; cursor:pointer; }
-    button:hover:not(:disabled){ filter:brightness(0.92); }
-    button:disabled{ background:#cbd5e1; cursor:not-allowed; }
-    #charts { display:flex; flex-wrap:wrap; gap:18px; justify-content:center; padding:10px 16px; }
-    canvas { border:1px solid #e2e8f0; border-radius:12px; background:#fff; width:560px; height:300px; }
-    #results { width:clamp(340px, 96%, 1200px); background:#fff; border-radius:12px; margin: 10px auto 34px; padding:16px; box-shadow:0 2px 6px rgba(0,0,0,.05); }
-    table { width:100%; border-collapse:collapse; font-size:14px; }
-    th, td { border-bottom:1px solid #eef2f7; padding:6px 8px; text-align:left; }
-    th { background:#f8fafc; }
-    h3, h4 { margin: 8px 0; }
+    body {
+      margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+      background: radial-gradient(1200px 800px at 10% 10%, rgba(34,211,238,0.12), transparent 50%) ,
+                  radial-gradient(1000px 700px at 90% 0%, rgba(139,92,246,0.12), transparent 55%),
+                  var(--bg);
+      color: var(--fg);
+    }
+    header {
+      padding: 24px 16px; text-align: center;
+    }
+    header h1 {
+      margin: 0 0 6px; font-weight: 800; letter-spacing: 0.2px;
+      background: linear-gradient(90deg, var(--accent1), var(--accent2));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      font-size: clamp(22px, 4vw, 34px);
+    }
+    header p { margin: 0; color: var(--muted); }
+    .container {
+      max-width: 1100px; margin: 0 auto; padding: 16px;
+      display: grid; gap: 16px;
+      grid-template-columns: 1fr;
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px; padding: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .row { display: grid; gap: 16px; grid-template-columns: 1fr; }
+    @media (min-width: 900px) {
+      .row { grid-template-columns: 1.1fr 1fr; }
+    }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    button, select, input[type="number"], input[type="range"] {
+      background: linear-gradient(135deg, rgba(34,211,238,0.15), rgba(139,92,246,0.15));
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--fg); padding: 10px 14px; border-radius: 14px;
+      cursor: pointer; font-weight: 600;
+      backdrop-filter: blur(6px);
+      transition: transform .06s ease, box-shadow .2s ease, background .2s ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(34,211,238,0.12); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .mini { font-size: 12px; padding: 6px 10px; }
+    label { font-size: 12px; color: var(--muted); margin-right: 8px; }
+    .status { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; color: #cbd5e1; white-space: pre-wrap; }
+    canvas { width: 100%; height: 320px; background: #0b1220; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); }
+    .two-col-table { width: 100%; border-collapse: collapse; }
+    .two-col-table th, .two-col-table td {
+      border: 1px solid rgba(255,255,255,0.08); padding: 8px 10px; vertical-align: top;
+    }
+    .two-col-table th { background: rgba(255,255,255,0.04); }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .tip { color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid rgba(255,255,255,0.12); }
+    .ok { color: var(--good); border-color: rgba(16,185,129,0.35); }
+    .warn { color: var(--warn); border-color: rgba(245,158,11,0.35); }
+    .kv { display: grid; grid-template-columns: 160px 1fr; gap: 6px 12px; font-size: 13px; }
+    .kv div:nth-child(odd) { color: var(--muted); }
+    footer { text-align: center; color: var(--muted); padding: 20px 10px; font-size: 12px; }
+    .flex { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
   </style>
 </head>
 <body>
   <header>
-    <div style="font-size:40px;">🎬</div>
-    <h1>Two-Tower Movie Recommender (TensorFlow.js)</h1>
+    <h1>In-Browser Two-Tower Retrieval — MovieLens 100K</h1>
+    <p>TensorFlow.js • Pure client-side • Static hosting (GitHub Pages-friendly)</p>
   </header>
 
-  <div id="controls">
-    <button id="loadBtn">Load Data</button>
-    <button id="trainBtn" disabled>Train</button>
-    <button id="testBtn" disabled>Test</button>
+  <div class="container">
+    <section class="card">
+      <div class="controls" id="controls">
+        <button id="btnLoad">Load Data</button>
+        <button id="btnTrain" disabled>Train</button>
+        <button id="btnTest" disabled>Test</button>
+
+        <span class="badge" id="dataBadge">Data: not loaded</span>
+        <span class="badge" id="modelBadge">Model: idle</span>
+      </div>
+
+      <div class="flex" style="margin-top:12px;">
+        <div class="kv">
+          <div>Max Interactions</div>
+          <div><input type="number" min="10000" step="5000" id="maxInteractions" value="80000" /> <span class="tip">limit to save memory</span></div>
+          <div>Embedding Dim</div>
+          <div><input type="number" min="8" step="8" id="embDim" value="32" /></div>
+          <div>Batch Size</div>
+          <div><input type="number" min="64" step="64" id="batchSize" value="512" /></div>
+          <div>Epochs</div>
+          <div><input type="number" min="1" step="1" id="epochs" value="5" /></div>
+          <div>Learning Rate</div>
+          <div><input type="number" step="0.0001" id="lr" value="0.01" /></div>
+          <div>Loss</div>
+          <div>
+            <select id="lossKind">
+              <option value="softmax" selected>In-batch softmax (sampled)</option>
+              <option value="bpr">BPR pairwise</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="tip" style="margin-top:8px;">
+        Place dataset files under <code>/data/u.data</code> and <code>/data/u.item</code>. Host the repo on GitHub Pages (Settings → Pages → Deploy from branch). Training is lightweight (~seconds to a couple minutes) depending on browser/CPU. Keep tab active for best performance.
+      </div>
+    </section>
+
+    <section class="row">
+      <div class="card">
+        <h3 style="margin-top:0;">Training Loss</h3>
+        <canvas id="lossCanvas" width="900" height="320"></canvas>
+        <div class="status" id="status"></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0;">Item Embeddings Projection (PCA 2D)</h3>
+        <canvas id="embedCanvas" width="900" height="320" title="Hover to see a movie title"></canvas>
+        <div class="tip">After training, we project up to 1,000 item embeddings to 2D via a simple PCA (power-iteration) and draw them here.</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin-top:0;">Top-10 Rated vs Top-10 Recommended (Random User with ≥20 ratings)</h3>
+      <div id="tableArea"></div>
+    </section>
   </div>
 
-  <div id="charts">
-    <canvas id="lossChart" width="560" height="300"></canvas>
-    <canvas id="embeddingChart" width="560" height="300"></canvas>
-  </div>
+  <footer>
+    Built with <strong>TensorFlow.js</strong>. No server. Educational demo of <em>two-tower retrieval</em> with in-batch negatives.
+  </footer>
 
-  <div id="results">
-    <p id="status-line">Put <code>u.item</code> and <code>u.data</code> inside the <code>./data/</code> folder, then click <b>Load Data</b>.</p>
-  </div>
+  <!-- TensorFlow.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
 
-  <!-- Order matters -->
-  <script src="two-tower.js"></script>
-  <script src="app.js"></script>
+  <!-- App logic then model (TwoTower is referenced only on action) -->
+  <script src="./app.js"></script>
+  <script src="./two-tower.js"></script>
 </body>
 </html>
