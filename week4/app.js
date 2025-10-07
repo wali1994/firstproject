@@ -1,7 +1,5 @@
 /* app.js — Controller for Two-Tower Movie Recommender (shallow + deep)
- * Folder layout:
- *   index.html, app.js, two-tower.js
- *   data/u.item, data/u.data
+ * Uses dataset at ./data/u.item and ./data/u.data
  */
 
 const $ = (id) => document.getElementById(id);
@@ -187,6 +185,7 @@ async function train() {
     setStatus(`Epoch ${ep+1}/${epochs} — shallow: ${lossesShallow.at(-1).toFixed(4)} | deep: ${lossesDeep.at(-1).toFixed(4)}`);
   }
 
+  // Build indices for recommendation
   shallow.buildItemIndex();
   const allItemGenres2D = tf.tensor2d(allItemGenres, [numItems, NUM_GENRES]);
   deep.buildItemIndex(allItemGenres2D);
@@ -287,7 +286,8 @@ async function drawEmbeddingPCA(itemVectors) {
   const { u: eigVecs } = tf.linalg.svd(cov);
   const W = eigVecs.slice([0,0],[D,2]);
   const proj = tf.matMul(Xc, W);
-  const pts = await proj.array();
+  const pts = proj.arraySync(); // sync read avoids disposal timing
+  proj.dispose(); mean.dispose(); Xc.dispose(); cov.dispose(); eigVecs.dispose(); W.dispose();
 
   const ctx = embCanvas.getContext('2d'); clearCanvas(embCanvas);
   const w=embCanvas.width,h=embCanvas.height,p=20;
@@ -301,14 +301,18 @@ async function drawEmbeddingPCA(itemVectors) {
     ctx.fillRect(x-1, y-1, 2, 2);
   }
   ctx.fillStyle='#333'; ctx.fillText('Item Embeddings (PCA)', 10, 14);
-
-  mean.dispose(); Xc.dispose(); cov.dispose(); eigVecs.dispose(); W.dispose(); proj.dispose();
 }
 
 /* ========================= Buttons ========================= */
-loadBtn?.addEventListener('click', async () => { try { await loadData(); } catch(e){ setStatus('Load error: '+e.message); console.error(e); }});
-trainBtn?.addEventListener('click', async () => { try { await train(); } catch(e){ setStatus('Train error: '+e.message); console.error(e); trainBtn.disabled=false; }});
-testBtn?.addEventListener('click', async () => { try { await test(); } catch(e){ setStatus('Test error: '+e.message); console.error(e); }});
+loadBtn?.addEventListener('click', async () => {
+  try { await loadData(); } catch(e){ setStatus('Load error: '+e.message); console.error(e); }
+});
+trainBtn?.addEventListener('click', async () => {
+  try { await train(); } catch(e){ setStatus('Train error: '+e.message); console.error(e); trainBtn.disabled=false; }
+});
+testBtn?.addEventListener('click', async () => {
+  try { await test(); } catch(e){ setStatus('Test error: '+e.message); console.error(e); }
+});
 
-// Optional: auto-load
+// Optional auto-load
 // document.addEventListener('DOMContentLoaded', () => loadBtn?.click());
