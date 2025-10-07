@@ -2,87 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Two-Tower Movie Recommender</title>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0/dist/tf.min.js"></script>
-
   <style>
-    body {
-      font-family: "Segoe UI", Roboto, sans-serif;
-      background: linear-gradient(135deg, #eef3ff, #ffffff);
-      color: #333;
-      margin: 0;
-      padding: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-    }
-    h1 {
-      color: #2a7de1;
-      margin-top: 20px;
-      text-align: center;
-    }
-    #controls {
-      display: flex;
-      gap: 10px;
-      margin: 20px;
-    }
-    button {
-      background: #2a7de1;
-      border: none;
-      border-radius: 8px;
-      color: white;
-      font-weight: 600;
-      padding: 10px 20px;
-      cursor: pointer;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      transition: background 0.2s;
-    }
-    button:hover:not(:disabled) {
-      background: #1f5abf;
-    }
-    button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-
-    #charts {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 20px;
-      margin-bottom: 20px;
-    }
-    canvas {
-      border: 1px solid #ccc;
-      border-radius: 10px;
-      background: #fff;
-      width: 480px;
-      height: 260px;
-    }
-
-    #results {
-      width: 95%;
-      max-width: 1200px;
-      background: #fafafa;
-      border-radius: 10px;
-      padding: 20px;
-      margin-bottom: 40px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-    }
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      font-size: 14px;
-    }
-    th, td {
-      border-bottom: 1px solid #e0e0e0;
-      padding: 4px 6px;
-      text-align: left;
-    }
-    th { background: #f5f7fa; }
-    h3, h4 { margin: 6px 0; }
+    body { font-family: "Segoe UI", Roboto, sans-serif; background: #f7faff; color: #333; margin: 0; }
+    h1 { color: #2a7de1; margin: 20px 0; text-align: center; }
+    #controls { display: flex; gap: 10px; justify-content: center; margin-bottom: 16px; }
+    button { background:#2a7de1; border:none; border-radius:8px; color:#fff; font-weight:600; padding:10px 20px; cursor:pointer; }
+    button:hover:not(:disabled){ background:#1f5abf; }
+    button:disabled{ background:#cbd5e1; cursor:not-allowed; }
+    #charts { display:flex; flex-wrap:wrap; gap:16px; justify-content:center; margin: 0 12px 16px; }
+    canvas { border:1px solid #e2e8f0; border-radius:10px; background:#fff; width:480px; height:260px; }
+    #results { width:clamp(320px, 95%, 1200px); background:#fff; border-radius:10px; padding:16px; margin: 0 auto 32px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { border-bottom: 1px solid #edf2f7; padding:6px 8px; text-align:left; }
+    th { background:#f8fafc; }
+    h3, h4 { margin: 8px 0; }
   </style>
 </head>
 <body>
@@ -100,10 +36,10 @@
   </div>
 
   <div id="results">
-    <p id="status-line">Click <b>Load Data</b> to begin.</p>
+    <p id="status-line">Click <b>Load Data</b> to begin. Make sure <code>u.item</code> and <code>u.data</code> are in the same folder as this page.</p>
   </div>
 
-  <!-- Scripts -->
+  <!-- App scripts (order matters) -->
   <script src="two-tower.js"></script>
   <script src="app.js"></script>
 </body>
