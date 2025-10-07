@@ -156,10 +156,7 @@ async function train() {
   if (!ratings.length) throw new Error('Load data first.');
   setStatus('Initializing models...');
   ...
-}
-  if (!ratings.length) throw new Error('Load data first.');
-  setStatus('Initializing models...');
-
+  
   shallow?.dispose?.();
   deep?.dispose?.();
 
