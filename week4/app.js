@@ -146,19 +146,26 @@ function buildUserHistories() {
 // Training
 ///////////////////////
 async function train() {
-  // reset TensorFlow.js variable registry
-  for (const name in tf.engine().registeredVariables) {
-    tf.dispose(tf.engine().registeredVariables[name]);
+  // Clear ALL existing TF.js variables to start fresh
+  if (tf.disposeVariables) {
+    tf.disposeVariables(); // simple, supported API
+  } else {
+    // Fallback if disposeVariables isn't available in your TF.js build
+    for (const name in tf.engine().registeredVariables) {
+      tf.dispose(tf.engine().registeredVariables[name]);
+    }
+    tf.engine().registeredVariables = {};
+    tf.engine().state.registeredVariables = {};
   }
-  tf.engine().registeredVariables = {};
-  tf.engine().state.registeredVariables = {};
 
+  // ... then your current code:
   if (!ratings.length) throw new Error('Load data first.');
   setStatus('Initializing models...');
-  ...
-  
   shallow?.dispose?.();
   deep?.dispose?.();
+
+  // (re)create models etc...
+}
 
   // init models
   shallow = new TwoTowerModel(numUsers, numItems, {
