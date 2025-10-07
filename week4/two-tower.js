@@ -1,9 +1,13 @@
+/* two-tower.js — Two-Tower retrieval model for TF.js
+ * Supports shallow (embed•dot) and deep (MLP towers with genres).
+ */
+
 class TwoTowerModel {
   constructor(numUsers, numItems, opts = {}) {
     this.numUsers = numUsers;
     this.numItems = numItems;
 
-    // Unique id so all variables from this model have unique names
+    // Unique suffix so TF.js registered variable names never collide
     this.uid = `m${Date.now()}_${Math.floor(Math.random() * 1e9)}`;
 
     this.embeddingDim = opts.embeddingDim ?? 32;
@@ -11,8 +15,8 @@ class TwoTowerModel {
     this.userHidden   = (opts.userHidden ?? [64, this.embeddingDim]).slice();
     this.itemHidden   = (opts.itemHidden ?? [64, this.embeddingDim]).slice();
 
-    const uLast = this.userHidden[this.userHidden.length - 1];
-    const iLast = this.itemHidden[this.itemHidden.length - 1];
+    const uLast = this.userHidden.at(-1);
+    const iLast = this.itemHidden.at(-1);
     if (this.useDeep && uLast !== iLast) {
       throw new Error(`userHidden last (${uLast}) must equal itemHidden last (${iLast})`);
     }
@@ -23,22 +27,19 @@ class TwoTowerModel {
     this.l2Reg       = opts.l2Reg ?? 0.0;
     this.lr          = opts.lr ?? 1e-3;
 
-    // --- Embedding tables (UNIQUE NAMES) ---
+    // Embeddings (UNIQUE NAMES)
     this.userEmb = tf.variable(
       tf.randomNormal([numUsers, this.embeddingDim], 0, 0.05),
-      true,
-      `userEmb_${this.uid}`
+      true, `userEmb_${this.uid}`
     );
     this.itemEmb = tf.variable(
       tf.randomNormal([numItems, this.embeddingDim], 0, 0.05),
-      true,
-      `itemEmb_${this.uid}`
+      true, `itemEmb_${this.uid}`
     );
 
     if (this.useDeep) {
       const uIn = this.embeddingDim + this.userFeatDim;
       this.userW = this._makeDenseStack('U', uIn, this.userHidden);
-
       const iIn = this.embeddingDim + this.numGenres;
       this.itemW = this._makeDenseStack('I', iIn, this.itemHidden);
     }
@@ -54,11 +55,7 @@ class TwoTowerModel {
       const nameW = `${prefix}_${this.uid}_W_${layerIdx}`;
       const nameB = `${prefix}_${this.uid}_b_${layerIdx}`;
       W.push({
-        W: tf.variable(
-          tf.randomNormal([prev, units], 0, Math.sqrt(2 / (prev + units))),
-          true,
-          nameW
-        ),
+        W: tf.variable(tf.randomNormal([prev, units], 0, Math.sqrt(2 / (prev + units))), true, nameW),
         b: tf.variable(tf.zeros([units]), true, nameB)
       });
       prev = units;
@@ -77,23 +74,23 @@ class TwoTowerModel {
   }
 
   _userTower(userIdx, userFeats = null) {
-    const uEmb = tf.gather(this.userEmb, userIdx);
+    const uEmb = tf.gather(this.userEmb, userIdx); // [B, emb]
     if (!this.useDeep) return uEmb;
     let uX = uEmb;
     if (this.userFeatDim > 0 && userFeats) uX = tf.concat([uX, userFeats], 1);
-    return this._forwardMLP(uX, this.userW);
+    return this._forwardMLP(uX, this.userW); // [B, out]
   }
 
   _itemTower(itemIdx, itemGenres = null) {
-    const iEmb = tf.gather(this.itemEmb, itemIdx);
+    const iEmb = tf.gather(this.itemEmb, itemIdx); // [B, emb]
     if (!this.useDeep) return iEmb;
     let iX = iEmb;
     if (this.numGenres > 0 && itemGenres) iX = tf.concat([iX, itemGenres], 1);
-    return this._forwardMLP(iX, this.itemW);
+    return this._forwardMLP(iX, this.itemW); // [B, out]
   }
 
   _batchSoftmaxLoss(U, V) {
-    const logits = tf.matMul(U, V, false, true); // [B,B]
+    const logits = tf.matMul(U, V, false, true);             // [B,B]
     const labels = tf.oneHot(tf.range(0, logits.shape[0], 1, 'int32'), logits.shape[1]);
     const ce = tf.losses.softmaxCrossEntropy(labels, logits);
     if (this.l2Reg > 0) {
