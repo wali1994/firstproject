@@ -3,8 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Smart Blood Donation Recommender (MVP)</title>
+  <title>Smart Blood Donation Recommender</title>
   <link rel="stylesheet" href="style.css" />
+  <!-- Charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
   <header class="app-header">
@@ -13,19 +15,23 @@
   </header>
 
   <main class="container">
+    <!-- 1) Load -->
     <section class="card">
       <h2>1) Load Data</h2>
-      <p class="hint">Upload the UCI Blood Transfusion CSV with headers:
-        <code>Recency,Frequency,Monetary,Time</code></p>
+      <p class="hint">Upload the UCI Blood Transfusion CSV. Required headers:
+        <code>Recency,Frequency,Monetary,Time</code>.
+        Optional binary target (for calibration): <code>Class</code> or <code>Donated</code>.
+      </p>
       <input type="file" id="fileInput" accept=".csv" />
       <button id="btnUseSample" class="ghost">Use sample (5 rows)</button>
       <div id="loadStatus" class="status"></div>
     </section>
 
+    <!-- 2) Weights & score -->
     <section class="card">
-      <h2>2) Configure Scoring (MVP)</h2>
+      <h2>2) Configure Scoring</h2>
       <div class="grid">
-        <label>Weight — Recency (lower is better)
+        <label>Weight — Recency (lower=better)
           <input id="wRecency" type="number" step="0.1" value="0.35" />
         </label>
         <label>Weight — Frequency
@@ -34,7 +40,7 @@
         <label>Weight — Monetary
           <input id="wMonetary" type="number" step="0.1" value="0.25" />
         </label>
-        <label>Weight — Time (tenure)
+        <label>Weight — Time
           <input id="wTime" type="number" step="0.1" value="0.10" />
         </label>
       </div>
@@ -42,6 +48,7 @@
       <div id="scoreStatus" class="status"></div>
     </section>
 
+    <!-- 3) Results -->
     <section class="card">
       <h2>3) Results</h2>
       <div class="controls">
@@ -67,14 +74,68 @@
         </table>
       </div>
     </section>
+
+    <!-- 4) EDA -->
+    <section class="card">
+      <h2>4) EDA (Explore)</h2>
+      <div class="eda-grid">
+        <div class="eda-item">
+          <h3>Histogram — Recency</h3>
+          <canvas id="histRecency" height="120"></canvas>
+        </div>
+        <div class="eda-item">
+          <h3>Histogram — Frequency</h3>
+          <canvas id="histFrequency" height="120"></canvas>
+        </div>
+        <div class="eda-item">
+          <h3>Histogram — Monetary</h3>
+          <canvas id="histMonetary" height="120"></canvas>
+        </div>
+        <div class="eda-item">
+          <h3>Histogram — Time</h3>
+          <canvas id="histTime" height="120"></canvas>
+        </div>
+        <div class="eda-item wide">
+          <h3>Correlation Heatmap</h3>
+          <canvas id="corrHeatmap" height="220"></canvas>
+          <p class="hint" id="corrNote"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5) Calibrated Model (optional) -->
+    <section class="card">
+      <h2>5) Calibrated Model (Logistic Regression)</h2>
+      <p class="hint">
+        If your CSV includes a binary target column (e.g., <code>Class</code> with 0/1),
+        you can train a logistic regression to calibrate the score.
+      </p>
+      <div class="grid">
+        <label>Learning rate
+          <input id="lr" type="number" step="0.001" value="0.05" />
+        </label>
+        <label>Epochs
+          <input id="epochs" type="number" value="200" />
+        </label>
+      </div>
+      <button id="btnTrainLR">Train Logistic Model</button>
+      <div id="trainStatus" class="status"></div>
+      <div class="coeffs">
+        <pre id="coeffBox" class="codebox"></pre>
+      </div>
+      <button id="btnApplyLR" class="ghost">Apply Calibrated Scores</button>
+      <div id="applyStatus" class="status"></div>
+    </section>
   </main>
 
   <footer class="app-footer">
-    <small>UI: blue & green theme • MVP — client-side only</small>
+    <small>Blue & Green UI • Client-side only • EDA + Optional Calibration</small>
   </footer>
 
   <script src="utils.js"></script>
   <script src="scoring.js"></script>
+  <script src="eda.js"></script>
+  <script src="logistic.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
