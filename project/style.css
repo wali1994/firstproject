@@ -43,3 +43,33 @@ th,td{padding:10px;border-bottom:1px solid var(--border);text-align:left}
 thead th{background:#f0f8ff}
 tbody tr:hover{background:#f9fdfb}
 .app-footer{padding:20px;text-align:center;color:var(--muted)}
+/* --- EDA + Logistic Regression styles (new) --- */
+.eda-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(260px,1fr));
+  gap:16px;
+}
+.eda-item{
+  background:#fafefe;
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:12px;
+}
+.eda-item h3{
+  margin:0 0 8px;
+  color:var(--green);
+  font-size:16px;
+}
+.eda-item.wide{grid-column:1 / -1}
+
+.codebox{
+  background:#0b1e2d;
+  color:#d7eefc;
+  padding:12px;
+  border-radius:10px;
+  font-size:13px;
+  overflow:auto;
+  max-height:220px;
+  border:1px solid #19374f;
+}
+/* --- end new block --- */
