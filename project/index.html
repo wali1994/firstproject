@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Smart Blood Donation RecSys — Output Results</title>
+<style>
+  :root{
+    --bg:#0b1220;            /* deep blue-bg */
+    --card:#0f1a2b;
+    --muted:#97b4c0;
+    --green:#29a36a;         /* green theme */
+    --blue:#2a6bd6;          /* blue theme */
+    --accent:#3ad29b;
+    --danger:#e45757;
+    --ring:#1f3559;
+    --text:#eaf2f6;
+    --text-soft:#cfe0e8;
+    --chip:#163252;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    background:linear-gradient(180deg, #081223 0%, #0b1424 60%, #0a1626 100%);
+    color:var(--text);
+  }
+  header{
+    position:sticky; top:0; z-index:10;
+    background:rgba(11,18,32,.8); backdrop-filter: blur(6px);
+    border-bottom:1px solid var(--ring);
+  }
+  .wrap{max-width:1200px; margin:0 auto; padding:16px 20px;}
+  .brand{display:flex; align-items:center; gap:12px; font-weight:700; letter-spacing:.3px}
+  .brand .logo{
+    width:36px; height:36px; border-radius:10px;
+    background:linear-gradient(145deg,var(--blue), var(--green));
+    display:grid; place-items:center; font-weight:900;
+    box-shadow:0 6px 20px rgba(45,148,227,.25), inset 0 0 20px rgba(58,210,155,.2);
+  }
+  .grid{
+    display:grid; gap:16px; grid-template-columns:340px 1fr; margin-top:16px;
+  }
+  .card{
+    background:var(--card); border:1px solid var(--ring); border-radius:16px; padding:16px;
+    box-shadow:0 10px 30px rgba(0,0,0,.25);
+  }
+  h2{margin:.2rem 0 1rem; font-size:1.1rem; color:var(--text-soft); font-weight:700}
+  .controls label{display:block; font-size:.85rem; color:var(--muted); margin:10px 0 6px}
+  input[type="number"], input[type="text"], select{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--ring);
+    background:#0b1830; color:var(--text); outline:none;
+  }
+  input[type="range"]{width:100%}
+  .btn{
+    background:linear-gradient(135deg, var(--blue), var(--green)); color:white; border:none;
+    padding:10px 14px; border-radius:12px; font-weight:700; cursor:pointer;
+    box-shadow:0 10px 24px rgba(42,107,214,.25);
+  }
+  .btn.secondary{background:#123258}
+  .btn.ghost{background:transparent; border:1px solid var(--ring)}
+  .kpis{display:grid; grid-template-columns:repeat(3,1fr); gap:12px}
+  .kpi{background:#0c1b30; border:1px solid var(--ring); border-radius:14px; padding:14px}
+  .kpi .val{font-size:1.4rem; font-weight:800}
+  .table-wrap{overflow:auto; border:1px solid var(--ring); border-radius:14px}
+  table{width:100%; border-collapse:collapse; font-size:.95rem}
+  th,td{padding:10px 12px; border-bottom:1px solid #122745; white-space:nowrap}
+  th{position:sticky; top:0; background:#0d1e35; text-align:left; font-weight:700; cursor:pointer}
+  tr:hover td{background:#0c1d33}
+  .badge{padding:4px 8px; border-radius:999px; font-size:.75rem; font-weight:700}
+  .hi{background:rgba(58,210,155,.15); color:#6cf0bb; border:1px solid rgba(58,210,155,.35)}
+  .mid{background:rgba(42,107,214,.18); color:#8cc2ff; border:1px solid rgba(42,107,214,.35)}
+  .low{background:rgba(228,87,87,.14); color:#ffb3b3; border:1px solid rgba(228,87,87,.35)}
+  .toolbar{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .chip{background:var(--chip); padding:6px 10px; border-radius:999px; border:1px solid var(--ring); color:#c8def0}
+  .foot{margin-top:10px; color:var(--muted); font-size:.8rem}
+  canvas{background:#081427; border-radius:12px; border:1px solid var(--ring)}
+  .hint{font-size:.8rem; color:var(--muted)}
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="brand">
+        <div class="logo">SB</div>
+        <div>
+          Smart Blood Donation Recommendation System — <span style="color:#7fdcb6;font-weight:800">Output Results</span><br>
+          <span class="hint">By: Bhuian Md Waliulla • Subject: Recommendation System • Group: BABDS 241</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap grid">
+    <!-- LEFT: Controls -->
+    <aside class="card">
+      <h2>Data & Scoring</h2>
+      <div class="controls">
+        <label>Upload CSV
+          <input id="fileInput" type="file" accept=".csv" />
+        </label>
+        <div class="hint">Accepted headers:<br>
+          <b>Option A</b> (compute here): <code>Donor_ID,Recency,Frequency,Monetary,Time</code><br>
+          <b>Option B</b> (use provided): add <code>Probability</code> column.</div>
+
+        <hr style="border:none;border-top:1px solid var(--ring); margin:14px 0">
+
+        <label>Scoring Mode</label>
+        <select id="mode">
+          <option value="compute
