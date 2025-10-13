@@ -1,4 +1,5 @@
 let rawRows = [];
+let lastHeader = [];
 
 const els = {
   file: document.getElementById('fileInput'),
@@ -13,23 +14,44 @@ const els = {
   topK: document.getElementById('topK'),
   tableBody: document.querySelector('#resultTable tbody'),
   btnExport: document.getElementById('btnExport'),
+  // LR
+  lr: document.getElementById('lr'),
+  epochs: document.getElementById('epochs'),
+  btnTrainLR: document.getElementById('btnTrainLR'),
+  trainStatus: document.getElementById('trainStatus'),
+  coeffBox: document.getElementById('coeffBox'),
+  btnApplyLR: document.getElementById('btnApplyLR'),
+  applyStatus: document.getElementById('applyStatus'),
 };
 
 els.file.addEventListener('change', handleFile);
 els.btnSample.addEventListener('click', loadSample);
 els.btnScore.addEventListener('click', scoreNow);
 els.btnExport.addEventListener('click', exportRanked);
+els.btnTrainLR.addEventListener('click', trainLR);
+els.btnApplyLR.addEventListener('click', applyLR);
 
 function handleFile() {
   const file = els.file.files?.[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
-    const text = reader.result;
-    const { header, rows } = parseCSV(text);
-    validateHeader(header);
-    rawRows = castNumeric(rows);
-    els.loadStatus.textContent = `Loaded ${rawRows.length} rows.`;
+    try {
+      const text = reader.result;
+      const { header, rows } = parseCSV(text);
+      validateHeader(header);
+      lastHeader = header;
+      rawRows = castNumeric(rows, header);
+      els.loadStatus.textContent = `Loaded ${rawRows.length} rows.`;
+      renderEDA(rawRows); // EDA refresh
+      // Reset LR state
+      LR.trained = false;
+      els.coeffBox.textContent = '';
+      els.trainStatus.textContent = '';
+      els.applyStatus.textContent = '';
+    } catch (e) {
+      els.loadStatus.textContent = 'Error: ' + e.message;
+    }
   };
   reader.onerror = () => {
     els.loadStatus.textContent = 'Error reading file.';
@@ -38,16 +60,22 @@ function handleFile() {
 }
 
 function loadSample() {
-  const sample = `Recency,Frequency,Monetary,Time
-2,50,12500,98
-6,24,5000,40
-12,7,1400,15
-1,70,17500,120
-4,15,3200,22`;
+  const sample = `Recency,Frequency,Monetary,Time,Class
+2,50,12500,98,1
+6,24,5000,40,0
+12,7,1400,15,0
+1,70,17500,120,1
+4,15,3200,22,0`;
   const { header, rows } = parseCSV(sample);
   validateHeader(header);
-  rawRows = castNumeric(rows);
+  lastHeader = header;
+  rawRows = castNumeric(rows, header);
   els.loadStatus.textContent = `Loaded sample (${rawRows.length} rows).`;
+  renderEDA(rawRows);
+  LR.trained = false;
+  els.coeffBox.textContent = '';
+  els.trainStatus.textContent = '';
+  els.applyStatus.textContent = '';
 }
 
 function validateHeader(header) {
@@ -56,34 +84,35 @@ function validateHeader(header) {
   if (!ok) throw new Error(`CSV must include headers: ${need.join(', ')}`);
 }
 
-function castNumeric(rows) {
-  return rows.map(r => ({
-    Recency: +r.Recency,
-    Frequency: +r.Frequency,
-    Monetary: +r.Monetary,
-    Time: +r.Time
-  }));
+function castNumeric(rows, header) {
+  // Keep any extra columns (like target) as-is, but numeric if possible
+  return rows.map(r => {
+    const obj = {};
+    for (const k of Object.keys(r)) {
+      const v = r[k];
+      obj[k] = isFinite(+v) && v !== '' ? +v : v;
+    }
+    return obj;
+  });
 }
 
-function scoreNow() {
-  if (!rawRows.length) {
-    els.scoreStatus.textContent = 'Please load data first.';
-    return;
-  }
-  const weights = {
+function currentWeights() {
+  const w = {
     wR: +els.wR.value || 0.35,
     wF: +els.wF.value || 0.30,
     wM: +els.wM.value || 0.25,
     wT: +els.wT.value || 0.10,
   };
+  const sum = w.wR + w.wF + w.wM + w.wT;
+  for (const k of Object.keys(w)) w[k] = w[k] / (sum || 1);
+  return w;
+}
 
-  // Optional: auto-normalize weights to sum=1
-  const sum = weights.wR + weights.wF + weights.wM + weights.wT;
-  for (const k of Object.keys(weights)) weights[k] = weights[k] / (sum || 1);
-
-  const ranked = computeScores(rawRows, weights);
+function scoreNow() {
+  if (!rawRows.length) { els.scoreStatus.textContent = 'Please load data first.'; return; }
+  const ranked = computeScores(rawRows, currentWeights());
   renderTable(ranked);
-  els.scoreStatus.textContent = `Scored ${ranked.length} donors.`;
+  els.scoreStatus.textContent = `Scored ${ranked.length} donors (weighted linear).`;
 }
 
 function renderTable(ranked) {
@@ -102,24 +131,41 @@ function renderTable(ranked) {
 }
 
 function exportRanked() {
-  if (!rawRows.length) {
-    els.scoreStatus.textContent = 'No data to export.';
-    return;
-  }
-  // Re-score with current weights to guarantee up-to-date export
-  const weights = {
-    wR: +els.wR.value || 0.35,
-    wF: +els.wF.value || 0.30,
-    wM: +els.wM.value || 0.25,
-    wT: +els.wT.value || 0.10,
-  };
-  const sum = weights.wR + weights.wF + weights.wM + weights.wT;
-  for (const k of Object.keys(weights)) weights[k] = weights[k] / (sum || 1);
-
-  const ranked = computeScores(rawRows, weights);
+  if (!rawRows.length) { els.scoreStatus.textContent = 'No data to export.'; return; }
+  const ranked = computeScores(rawRows, currentWeights());
   const header = ['Recency','Frequency','Monetary','Time','Score'];
   const lines = [header.join(',')].concat(
     ranked.map(r => [r.Recency, r.Frequency, r.Monetary, r.Time, r._score].join(','))
   );
   downloadText('ranked_donors.csv', lines.join('\n'));
+}
+
+/** Logistic Regression */
+function trainLR(){
+  if (!rawRows.length) { els.trainStatus.textContent = 'Load data first.'; return; }
+  const { X, y, yName, note } = prepareXY(rawRows, lastHeader);
+  if (!X || !y) { els.trainStatus.textContent = note || 'No target column detected (need 0/1 labels).'; return; }
+
+  els.trainStatus.textContent = `${note} Training...`;
+  const opts = { lr: +els.lr.value || 0.05, epochs: +els.epochs.value || 200 };
+  const { beta0, beta } = trainLogistic(X, y, opts);
+  LR.beta0 = beta0; LR.beta = beta; LR.trained = true;
+  els.trainStatus.textContent = `Trained Logistic Regression (epochs=${opts.epochs}, lr=${opts.lr}).`;
+  els.coeffBox.textContent =
+`Logistic Regression coefficients:
+Intercept (beta0): ${beta0.toFixed(4)}
+Recency (norm):    ${beta[0].toFixed(4)}  (lower raw Recency => higher normalized; note MVP inverted Recency)
+Frequency (norm):  ${beta[1].toFixed(4)}
+Monetary (norm):   ${beta[2].toFixed(4)}
+Time (norm):       ${beta[3].toFixed(4)}`;
+}
+
+function applyLR(){
+  if (!LR.trained) { els.applyStatus.textContent = 'Train the logistic model first.'; return; }
+  if (!rawRows.length) { els.applyStatus.textContent = 'Load data first.'; return; }
+  const probs = applyLogistic(rawRows, LR);
+  // Attach calibrated score and re-render
+  const enriched = rawRows.map((r,i) => ({...r, _score: +probs[i].toFixed(4)})).sort((a,b)=>b._score - a._score);
+  renderTable(enriched);
+  els.applyStatus.textContent = `Applied calibrated scores (logistic probability).`;
 }
