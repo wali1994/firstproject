@@ -9,7 +9,9 @@
 <body>
     <div class="container">
         <h1>Content-Based Movie Recommender</h1>
-        <p>Select a movie you like and we will find genre-similar ones using
+        <p>
+            Select a movie you like. We will extract features from its description
+            (sub-genres, themes) then recommend similar movies using
             <strong>cosine similarity</strong>.
         </p>
 
@@ -27,9 +29,9 @@
         </div>
     </div>
 
-    <!-- Data loader parses u.item and u.data from MovieLens 100K -->
+    <!-- Stage 1: Read raw data and basic movie metadata -->
     <script src="data.js"></script>
-    <!-- Main app logic: dropdown + cosine-similarity recommender -->
+    <!-- Stage 2–4: Feature pipeline + cosine-similarity recommender -->
     <script src="script.js"></script>
 </body>
 </html>
