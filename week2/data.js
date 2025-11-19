@@ -16,14 +16,14 @@ const genreNames = [
  */
 async function loadData() {
     try {
-        const moviesResponse = await fetch('u.item'); // You may need to adjust the path
+        const moviesResponse = await fetch('u.item');
         if (!moviesResponse.ok) {
             throw new Error(`Failed to load movie data: ${moviesResponse.status}`);
         }
         const moviesText = await moviesResponse.text();
         parseItemData(moviesText);
 
-        const ratingsResponse = await fetch('u.data'); // You may need to adjust the path
+        const ratingsResponse = await fetch('u.data');
         if (!ratingsResponse.ok) {
             throw new Error(`Failed to load rating data: ${ratingsResponse.status}`);
         }
@@ -43,7 +43,7 @@ async function loadData() {
 
 /**
  * Parse movie metadata from u.item format.
- * If your custom dataset has an "overview" or "description" column,
+ * If your custom dataset has an "overview" or "description" column
  * you can plug it here instead of using the title as description.
  */
 function parseItemData(text) {
@@ -53,13 +53,15 @@ function parseItemData(text) {
         if (line.trim() === '') continue;
 
         const fields = line.split('|');
-        if (fields.length < 5) continue; // Skip invalid lines
+        if (fields.length < 5) continue;
 
         const id = parseInt(fields[0]);
         const title = fields[1];
 
-        // Assuming the description is in a specific column (adjust if needed)
-        const description = fields[2]; // Use field[2] if description is at index 2, or adjust based on your dataset
+        // TODO for your own dataset:
+        // const description = fields[<index_of_overview_column>];
+        // For MovieLens we do not have overview so we reuse the title
+        const description = title;
 
         // Extract genres (last 19 fields) and map to names
         const genreValues = fields.slice(5, 24).map(value => parseInt(value, 10));
