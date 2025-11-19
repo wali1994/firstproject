@@ -9,9 +9,9 @@
 <body>
     <div class="container">
         <h1>Content-Based Movie Recommender</h1>
-        <p>Select a movie you like and we will find similar ones for you using cosine similarity.</p>
+        <p>Select a movie or let the system analyze movie descriptions to get recommendations based on cosine similarity.</p>
 
-        <!-- Section 1: Existing genre-based recommender -->
+        <!-- Section 1: Movie dropdown for Option 1 -->
         <div class="controls">
             <label for="movie-select" class="label">Option 1: Pick a movie from the list</label>
             <select id="movie-select">
@@ -26,42 +26,24 @@
             <p id="result">Please wait, loading data...</p>
         </div>
 
-        <!-- Divider between the two options -->
+        <!-- Divider between options -->
         <hr class="divider">
 
-        <!-- Section 2: Overview + theme based recommender -->
-        <h2>Option 2: Describe the movie you feel like watching</h2>
+        <!-- Section 2: Automatically analyze the movie descriptions -->
+        <h2>Option 2: Analyze movie descriptions to get recommendations</h2>
         <p>
-            Write a short overview or idea of the movie and choose a main theme.
-            We will infer genres from your text then recommend similar movies using the same cosine formula.
+            The system will automatically analyze the movie descriptions from the dataset and use **keywords** to recommend similar movies.
         </p>
 
         <div class="controls">
-            <label for="overview-text" class="label">Movie overview or idea</label>
-            <textarea id="overview-text" rows="4"
-                placeholder="Example: A young hero in space joins a rebel alliance to fight an evil empire..."></textarea>
-
-            <label for="theme-select" class="label">Main theme</label>
-            <select id="theme-select">
-                <option value="" selected>Let the system guess from text</option>
-                <option value="Good vs Evil">Good vs Evil</option>
-                <option value="Coming of Age">Coming of Age</option>
-                <option value="Love and Romance">Love and Romance</option>
-                <option value="Friendship and Family">Friendship and Family</option>
-                <option value="Crime and Mystery">Crime and Mystery</option>
-                <option value="War and Conflict">War and Conflict</option>
-                <option value="Comedy and Fun">Comedy and Fun</option>
-                <option value="Horror and Fear">Horror and Fear</option>
-            </select>
-
             <button id="overview-btn" onclick="getRecommendationsFromOverview()">
-                Get Recommendations from Description
+                Get Recommendations based on Movie Overview
             </button>
         </div>
 
         <div id="overview-result-box">
             <p id="result-overview">
-                Enter a short description and optional theme to get recommendations.
+                Automatically analyzing and recommending based on movie descriptions.
             </p>
         </div>
     </div>
