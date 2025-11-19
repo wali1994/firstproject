@@ -57,8 +57,7 @@ p {
     text-align: left;
 }
 
-#movie-select,
-#theme-select {
+#movie-select {
     padding: 12px;
     border: 1px solid #ddd;
     border-radius: 5px;
@@ -68,7 +67,6 @@ p {
 }
 
 #movie-select:focus,
-#theme-select:focus,
 #overview-text:focus {
     border-color: #3498db;
     outline: none;
@@ -89,15 +87,6 @@ p {
 #recommend-btn:hover,
 #overview-btn:hover {
     background-color: #2980b9;
-}
-
-#overview-text {
-    padding: 10px;
-    border-radius: 5px;
-    border: 1px solid #ddd;
-    resize: vertical;
-    font-size: 14px;
-    background-color: #f9f9f9;
 }
 
 #result-box,
