@@ -128,153 +128,60 @@ function getRecommendations() {
 }
 
 // -------------------- Option 2: Overview + theme --------------------
-//
-// Here we follow the slide idea:
-// 1. Read raw overview text.
-// 2. Extract simple features (keywords).
-// 3. Map them to canonical genres (our master list is genreNames).
-// 4. Build a one-hot vector and use the SAME cosine similarity.
-//
 
-// Simple rules to map description keywords and theme to MovieLens genres
-function descriptionToGenreVector(description, themeLabel) {
-    const text = (description + ' ' + (themeLabel || '')).toLowerCase();
+function extractKeywordsFromOverview(description) {
+    const keywords = [];
+    const text = description.toLowerCase();
 
-    const activeGenres = new Set();
-
-    // Sci-Fi / space style
-    if (text.includes('space') ||
-        text.includes('galaxy') ||
-        text.includes('alien') ||
-        text.includes('future') ||
-        text.includes('robot')) {
-        activeGenres.add('Sci-Fi');
-        activeGenres.add('Action');
+    // Simple keyword extraction rules based on movie description
+    if (text.includes("space") || text.includes("alien") || text.includes("galaxy")) {
+        keywords.push("sci-fi");
+    }
+    if (text.includes("magic") || text.includes("dragon") || text.includes("wizard")) {
+        keywords.push("fantasy");
+    }
+    if (text.includes("detective") || text.includes("police") || text.includes("murder")) {
+        keywords.push("crime");
+    }
+    if (text.includes("love") || text.includes("romance")) {
+        keywords.push("romantic");
+    }
+    if (text.includes("war") || text.includes("soldier") || text.includes("battle")) {
+        keywords.push("war");
+    }
+    if (text.includes("horror") || text.includes("ghost") || text.includes("monster")) {
+        keywords.push("horror");
     }
 
-    // Fantasy
-    if (text.includes('magic') ||
-        text.includes('wizard') ||
-        text.includes('dragon') ||
-        text.includes('kingdom')) {
-        activeGenres.add('Fantasy');
-        activeGenres.add("Children's");
-    }
-
-    // Crime / thriller / mystery
-    if (text.includes('detective') ||
-        text.includes('police') ||
-        text.includes('murder') ||
-        text.includes('case') ||
-        text.includes('criminal')) {
-        activeGenres.add('Crime');
-        activeGenres.add('Thriller');
-        activeGenres.add('Mystery');
-    }
-
-    // Romance / love
-    if (text.includes('love') ||
-        text.includes('romance') ||
-        text.includes('wedding') ||
-        text.includes('relationship')) {
-        activeGenres.add('Romance');
-        activeGenres.add('Comedy');
-    }
-
-    // War / conflict
-    if (text.includes('war') ||
-        text.includes('battle') ||
-        text.includes('soldier') ||
-        text.includes('army')) {
-        activeGenres.add('War');
-        activeGenres.add('Action');
-    }
-
-    // Horror
-    if (text.includes('ghost') ||
-        text.includes('monster') ||
-        text.includes('haunted') ||
-        text.includes('demon') ||
-        text.includes('zombie') ||
-        text.includes('killer')) {
-        activeGenres.add('Horror');
-        activeGenres.add('Thriller');
-    }
-
-    // Family / kids / friendship
-    if (text.includes('family') ||
-        text.includes('kids') ||
-        text.includes('child') ||
-        text.includes('friends') ||
-        text.includes('school')) {
-        activeGenres.add("Children's");
-        activeGenres.add('Comedy');
-        activeGenres.add('Drama');
-    }
-
-    // Use explicit theme dropdown as extra hint
-    if (themeLabel) {
-        const t = themeLabel.toLowerCase();
-        if (t.includes('good vs evil') || t.includes('war')) {
-            activeGenres.add('Action');
-            activeGenres.add('Sci-Fi');
-            activeGenres.add('War');
-        } else if (t.includes('coming of age')) {
-            activeGenres.add('Drama');
-        } else if (t.includes('romance') || t.includes('love')) {
-            activeGenres.add('Romance');
-            activeGenres.add('Comedy');
-        } else if (t.includes('friendship')) {
-            activeGenres.add('Drama');
-            activeGenres.add("Children's");
-        } else if (t.includes('crime')) {
-            activeGenres.add('Crime');
-            activeGenres.add('Thriller');
-        } else if (t.includes('horror') || t.includes('fear')) {
-            activeGenres.add('Horror');
-            activeGenres.add('Thriller');
-        } else if (t.includes('comedy') || t.includes('fun')) {
-            activeGenres.add('Comedy');
-        }
-    }
-
-    // Build final one-hot vector in MovieLens genre order
-    const vector = genreNames.map(name => (activeGenres.has(name) ? 1 : 0));
-    return vector;
+    return keywords;
 }
 
 function getRecommendationsFromOverview() {
     const resultElement = document.getElementById('result-overview');
     const descriptionInput = document.getElementById('overview-text');
-    const themeSelect = document.getElementById('theme-select');
 
     const description = descriptionInput.value.trim();
-    const themeLabel = themeSelect.value;
 
     if (!description) {
-        resultElement.textContent = "Please write a short overview first.";
+        resultElement.textContent = "Please provide a movie description.";
         resultElement.className = 'error';
         return;
     }
 
-    resultElement.textContent =
-        "Analyzing your description and calculating recommendations (cosine)...";
+    resultElement.textContent = "Analyzing your description and calculating recommendations...";
     resultElement.className = 'loading';
 
     setTimeout(() => {
         try {
-            const queryVector = descriptionToGenreVector(description, themeLabel);
-
-            // If vector is all zeros, we have no signal
-            const hasSignal = queryVector.some(v => v !== 0);
-            if (!hasSignal) {
-                resultElement.textContent =
-                    "Could not detect any genres from your text. Try adding more details or choosing a theme.";
+            const keywords = extractKeywordsFromOverview(description);
+            if (keywords.length === 0) {
+                resultElement.textContent = "No keywords found in your description.";
                 resultElement.className = 'error';
                 return;
             }
 
-            // Compute cosine similarity between query and every movie
+            const queryVector = genreNames.map(genre => (keywords.includes(genre.toLowerCase()) ? 1 : 0));
+
             const scoredMovies = movies.map(movie => {
                 const movieVector = genreVectorFor(movie);
                 const score = cosineSimilarity(queryVector, movieVector);
@@ -288,7 +195,7 @@ function getRecommendationsFromOverview() {
             if (topRecommendations.length > 0) {
                 const titles = topRecommendations.map(m => m.title);
                 resultElement.textContent =
-                    "Based on your description we recommend: " +
+                    "Based on your description, we recommend: " +
                     titles.join(', ');
                 resultElement.className = 'success';
             } else {
@@ -297,7 +204,7 @@ function getRecommendationsFromOverview() {
                 resultElement.className = 'error';
             }
         } catch (error) {
-            console.error('Error in description based recommendation:', error);
+            console.error('Error in description-based recommendation:', error);
             resultElement.textContent =
                 "An error occurred while calculating recommendations.";
             resultElement.className = 'error';
