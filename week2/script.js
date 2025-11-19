@@ -40,28 +40,6 @@ function populateMoviesDropdown() {
     });
 }
 
-// --- Basic helpers (shared by both options) ---
-
-// Create a binary genre vector for a movie
-function genreVectorFor(movie) {
-    return genreNames.map(genre => (movie.genres.includes(genre) ? 1 : 0));
-}
-
-function cosineSimilarity(vecA, vecB) {
-    let dot = 0;
-    let magA = 0;
-    let magB = 0;
-    for (let i = 0; i < vecA.length; i++) {
-        const a = vecA[i];
-        const b = vecB[i];
-        dot += a * b;
-        magA += a * a;
-        magB += b * b;
-    }
-    const denom = Math.sqrt(magA) * Math.sqrt(magB);
-    return denom ? dot / denom : 0;
-}
-
 // -------------------- Option 1: Select a movie --------------------
 
 function getRecommendations() {
@@ -152,6 +130,12 @@ function extractKeywordsFromOverview(description) {
     if (text.includes("horror") || text.includes("ghost") || text.includes("monster")) {
         keywords.push("horror");
     }
+    if (text.includes("family") || text.includes("kids") || text.includes("children")) {
+        keywords.push("family");
+    }
+    if (text.includes("comedy")) {
+        keywords.push("comedy");
+    }
 
     return keywords;
 }
@@ -180,6 +164,7 @@ function getRecommendationsFromOverview() {
                 return;
             }
 
+            // Convert the extracted keywords into a vector
             const queryVector = genreNames.map(genre => (keywords.includes(genre.toLowerCase()) ? 1 : 0));
 
             const scoredMovies = movies.map(movie => {
