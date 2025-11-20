@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MindMood – Emotion-Aware Mental Wellness Recommender</title>
+    <title>MindMood – Emotion-Aware Wellness Recommender</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,26 +13,25 @@
     </header>
 
     <div class="container">
-        <!-- Mood Slider Input -->
-        <label for="moodSlider">How are you feeling today?</label>
-        <input type="range" id="moodSlider" min="0" max="10" step="1" value="5">
-        <span id="moodValue">5</span>
-
-        <!-- Optional Voice Input -->
-        <button id="voiceInputBtn">Record Mood (Optional)</button>
-        
-        <!-- Display Recommendations -->
-        <div id="recommendations">
-            <h3>Your Recommendations:</h3>
-            <ul id="recommendationList">
-                <!-- Dynamic recommendation list will go here -->
-            </ul>
+        <!-- User Option Selection -->
+        <div class="option-container">
+            <h3>How would you like to get recommendations?</h3>
+            <button id="textOption">Text-Based Recommendation</button>
+            <button id="audioOption">Audio-Based Recommendation</button>
         </div>
 
-        <!-- Feedback Section -->
-        <div id="feedbackSection">
-            <button id="positiveFeedback">Helpful</button>
-            <button id="negativeFeedback">Not Helpful</button>
+        <!-- Text Recommendation Section -->
+        <div id="textRecommendation" class="recommendation-section">
+            <textarea id="textInput" placeholder="Write your mood or feeling..."></textarea>
+            <button id="textSubmit">Get Recommendation</button>
+            <div id="textOutput"></div>
+        </div>
+
+        <!-- Audio Recommendation Section -->
+        <div id="audioRecommendation" class="recommendation-section">
+            <input type="file" id="audioFile" accept="audio/*" />
+            <button id="audioSubmit">Get Audio-Based Recommendation</button>
+            <div id="audioOutput"></div>
         </div>
     </div>
 
