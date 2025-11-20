@@ -1,38 +1,47 @@
 // script.js
 
-import { getRecommendation } from './app.js';
+import { getTextRecommendation } from './app.js';
 
-// Get DOM elements
-const moodSlider = document.getElementById("moodSlider");
-const moodValueSpan = document.getElementById("moodValue");
-const recommendationList = document.getElementById("recommendationList");
+// DOM elements
+const textOptionBtn = document.getElementById("textOption");
+const audioOptionBtn = document.getElementById("audioOption");
 
-// Update the displayed mood value when the slider changes
-moodSlider.addEventListener("input", function() {
-    moodValueSpan.textContent = moodSlider.value;
-    updateRecommendations(moodSlider.value);
+const textRecommendationSection = document.getElementById("textRecommendation");
+const audioRecommendationSection = document.getElementById("audioRecommendation");
+
+const textInput = document.getElementById("textInput");
+const textOutput = document.getElementById("textOutput");
+
+const audioFileInput = document.getElementById("audioFile");
+const audioOutput = document.getElementById("audioOutput");
+
+// Switch to text-based recommendation section
+textOptionBtn.addEventListener("click", function() {
+    textRecommendationSection.classList.add("active");
+    audioRecommendationSection.classList.remove("active");
 });
 
-// Function to update recommendations
-function updateRecommendations(moodValue) {
-    // Clear previous recommendations
-    recommendationList.innerHTML = "";
-
-    // Get the recommendation based on mood
-    const recommendation = getRecommendation(moodValue);
-    const listItem = document.createElement("li");
-    listItem.textContent = recommendation;
-    recommendationList.appendChild(listItem);
-}
-
-// Feedback buttons to capture user interaction
-document.getElementById("positiveFeedback").addEventListener("click", () => {
-    alert("Thank you for your feedback!");
+// Switch to audio-based recommendation section
+audioOptionBtn.addEventListener("click", function() {
+    audioRecommendationSection.classList.add("active");
+    textRecommendationSection.classList.remove("active");
 });
 
-document.getElementById("negativeFeedback").addEventListener("click", () => {
-    alert("Sorry that the recommendation wasn't helpful.");
+// Handle text-based recommendation
+document.getElementById("textSubmit").addEventListener("click", function() {
+    const moodText = textInput.value.trim();
+    const recommendation = getTextRecommendation(moodText);
+    textOutput.textContent = recommendation;
 });
 
-// Call the initial function to display recommendations for default mood value
-updateRecommendations(moodSlider.value);
+// Handle audio-based recommendation (for now, only simulating it)
+document.getElementById("audioSubmit").addEventListener("click", function() {
+    const file = audioFileInput.files[0];
+    if (!file) {
+        audioOutput.textContent = "Please upload an audio file.";
+        return;
+    }
+
+    // Simulate audio-based recommendation (replace this with actual processing later)
+    audioOutput.textContent = "Processing your audio file... (Simulated)";
+});
