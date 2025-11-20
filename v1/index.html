@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MindMood – Emotion-Aware Mental Wellness Recommender</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>MindMood</h1>
+        <p>Your Emotion-Aware Mental Wellness Recommender</p>
+    </header>
+
+    <div class="container">
+        <!-- Mood Slider Input -->
+        <label for="moodSlider">How are you feeling today?</label>
+        <input type="range" id="moodSlider" min="0" max="10" step="1" value="5">
+        <span id="moodValue">5</span>
+
+        <!-- Optional Voice Input -->
+        <button id="voiceInputBtn">Record Mood (Optional)</button>
+        
+        <!-- Display Recommendations -->
+        <div id="recommendations">
+            <h3>Your Recommendations:</h3>
+            <ul id="recommendationList">
+                <!-- Dynamic recommendation list will go here -->
+            </ul>
+        </div>
+
+        <!-- Feedback Section -->
+        <div id="feedbackSection">
+            <button id="positiveFeedback">Helpful</button>
+            <button id="negativeFeedback">Not Helpful</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
