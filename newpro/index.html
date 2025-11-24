@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Qwen3-VL ISP Support Demo (DeepInfra)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Qwen3-VL ISP Support – Base vs Fine-tuned</h1>
+    <p>DeepInfra API · Dataset on GitHub · Front-end only</p>
+  </header>
+
+  <main>
+    <section id="api-config">
+      <h2>API configuration</h2>
+      <p>Paste your DeepInfra API key. It will only stay in this browser tab and will not be saved in the file.</p>
+      <label>
+        API key
+        <input id="api-key-input" type="password" placeholder="di_sk_...">
+      </label>
+
+      <label>
+        Base model
+        <input id="base-model-input" type="text" value="Qwen/Qwen3-VL-4B-Instruct">
+      </label>
+
+      <label>
+        Fine-tuned model
+        <input id="ft-model-input" type="text" value="yourname/qwen3-vl-4b-isp-support-lora">
+      </label>
+    </section>
+
+    <section id="controls">
+      <h2>Choose validation example</h2>
+      <label for="example-select">Example:</label>
+      <select id="example-select"></select>
+      <button id="run-btn">Run models</button>
+    </section>
+
+    <section id="example">
+      <h2>Input</h2>
+      <pre id="example-input"></pre>
+      <h3>Expected answer</h3>
+      <pre id="example-output"></pre>
+    </section>
+
+    <section id="results">
+      <div class="result-box">
+        <h2>Base model</h2>
+        <pre id="base-answer"></pre>
+      </div>
+      <div class="result-box">
+        <h2>Fine-tuned model</h2>
+        <pre id="ft-answer"></pre>
+      </div>
+    </section>
+
+    <section id="metrics">
+      <h2>Simple metric</h2>
+      <p id="metrics-text">Run an example to see scores.</p>
+    </section>
+  </main>
+
+  <footer>
+    <small>Uses DeepInfra OpenAI-compatible chat API</small>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
