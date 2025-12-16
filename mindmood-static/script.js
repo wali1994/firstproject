@@ -52,47 +52,75 @@ function displayMood(mood) {
 }
 
 // Variables for voice recording
+// Variables for voice recording
 let mediaRecorder;
 let audioChunks = [];
+let recordingStartTime;
+let recordingInterval;
 
 // Start recording (using MediaRecorder API)
 function startRecording() {
-    document.getElementById("start-record-btn").style.display = "none";
-    document.getElementById("stop-record-btn").style.display = "inline-block";
-    document.getElementById("recording-timer").style.display = "block";
-    document.getElementById("recording-playback").style.display = "none";
-
-    // Request microphone access and start recording
-    navigator.mediaDevices.getUserMedia({ audio: true })
+    navigator.mediaDevices.getUserMedia({ audio: true }) // Request microphone access
         .then(stream => {
-            mediaRecorder = new MediaRecorder(stream);
-            mediaRecorder.start();
+            mediaRecorder = new MediaRecorder(stream); // Create MediaRecorder instance
+            audioChunks = []; // Clear previous audio chunks
 
-            mediaRecorder.ondataavailable = event => {
-                audioChunks.push(event.data);
+            mediaRecorder.ondataavailable = (event) => {
+                audioChunks.push(event.data); // Push recorded audio data
             };
 
             mediaRecorder.onstop = () => {
                 const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                 const audioUrl = URL.createObjectURL(audioBlob);
-                document.getElementById("recorded-audio").src = audioUrl;
-                document.getElementById("analyze-recording-btn").disabled = false;  // Enable analysis after recording
+                document.getElementById("recorded-audio").src = audioUrl; // Display recorded audio
+                document.getElementById("analyze-recording-btn").disabled = false; // Enable the analyze button
             };
+
+            mediaRecorder.start(); // Start recording
+
+            // Show recording UI changes
+            document.getElementById("start-record-btn").style.display = "none"; // Hide Start button
+            document.getElementById("stop-record-btn").style.display = "inline-block"; // Show Stop button
+            document.getElementById("recording-timer").style.display = "block"; // Show recording timer
+
+            // Start timer
+            recordingStartTime = Date.now();
+            recordingInterval = setInterval(updateRecordingTime, 1000); // Update the timer every second
+        })
+        .catch(error => {
+            console.error("Error accessing the microphone:", error);
+            alert("Microphone access denied. Please enable microphone permissions.");
         });
 }
 
 // Stop recording (voice)
 function stopRecording() {
-    document.getElementById("stop-record-btn").style.display = "none";
-    document.getElementById("start-record-btn").style.display = "inline-block";
-    document.getElementById("recording-playback").style.display = "block";
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop(); // Stop recording
+        mediaRecorder.stream.getTracks().forEach(track => track.stop()); // Stop the stream to release the microphone
 
-    mediaRecorder.stop();
+        // Hide stop button and show start button again
+        document.getElementById("stop-record-btn").style.display = "none";
+        document.getElementById("start-record-btn").style.display = "inline-block";
+        document.getElementById("recording-timer").style.display = "none"; // Hide timer
+    }
+
+    // Stop the timer
+    clearInterval(recordingInterval);
 }
 
-// Clear recording (voice)
+// Update the recording timer
+function updateRecordingTime() {
+    const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000); // Calculate elapsed time in seconds
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    document.getElementById("timer").textContent =
+        `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`; // Format time
+}
+
+// Clear recording (reset audio)
 function clearRecording() {
-    document.getElementById("recorded-audio").src = "";
-    document.getElementById("analyze-recording-btn").disabled = true;
-    audioChunks = [];
+    document.getElementById("recorded-audio").src = ""; // Clear the audio playback
+    document.getElementById("analyze-recording-btn").disabled = true; // Disable analyze button
+    audioChunks = []; // Clear audio chunks
 }
